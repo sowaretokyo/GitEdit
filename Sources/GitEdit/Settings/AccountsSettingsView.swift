@@ -24,7 +24,7 @@ struct AccountsSettingsView: View {
         .formStyle(.grouped)
         .padding()
         .sheet(isPresented: $isShowingSignIn) {
-            SignInSheet(isPresented: $isShowingSignIn, store: store)
+            DeviceFlowSheet(isPresented: $isShowingSignIn, store: store)
         }
     }
 
@@ -69,10 +69,10 @@ struct AccountsSettingsView: View {
                     .imageScale(.large)
                     .foregroundStyle(.tint)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(L("GitHub にサインイン…"))
+                    Text(L("GitHub.com にサインイン…"))
                         .font(.body.weight(.medium))
                         .foregroundStyle(.primary)
-                    Text(L("Personal Access Token を使って認証します"))
+                    Text(L("ブラウザを開いて OAuth で認証します"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -1,6 +1,11 @@
 import SwiftUI
 
-struct RepositoryDetailView: View {
+/// The main view shown when a repository is selected.
+/// Mirrors GitHub Desktop's layout:
+///   • top toolbar with Current Repository / Branch / Network ops
+///   • sidebar with Changes / History tab control
+///   • detail pane that swaps based on the selected tab
+struct RepositoryView: View {
     let repository: Repository
 
     @StateObject private var repoVM: RepositoryViewModel
@@ -19,12 +24,6 @@ struct RepositoryDetailView: View {
             case .history: return L("履歴")
             }
         }
-        var icon: String {
-            switch self {
-            case .changes: return "pencil.and.list.clipboard"
-            case .history: return "clock.arrow.circlepath"
-            }
-        }
     }
 
     init(repository: Repository) {
@@ -35,16 +34,12 @@ struct RepositoryDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
+        HSplitView {
+            sidebar
+                .frame(minWidth: 320, idealWidth: 360, maxWidth: 480)
 
-            switch selectedTab {
-            case .changes:
-                ChangesView(viewModel: changesVM)
-            case .history:
-                HistoryView(viewModel: historyVM)
-            }
+            detail
+                .frame(minWidth: 480)
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .task {
@@ -66,6 +61,9 @@ struct RepositoryDetailView: View {
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
+                CurrentRepositoryPicker()
+            }
+            ToolbarItem(placement: .navigation) {
                 BranchPicker(repoVM: repoVM)
             }
             ToolbarItemGroup(placement: .primaryAction) {
@@ -82,7 +80,7 @@ struct RepositoryDetailView: View {
                 set: { if !$0 { repoVM.cancelSwitchAfterDirtyWarning() } }
             ),
             presenting: repoVM.pendingSwitchBranch
-        ) { branch in
+        ) { _ in
             Button(L("このまま切り替え"), role: .destructive) {
                 Task { await repoVM.confirmSwitchAfterDirtyWarning() }
             }
@@ -97,54 +95,59 @@ struct RepositoryDetailView: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: DT.Space.md) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.15))
-                    .frame(width: 34, height: 34)
-                Image(systemName: "folder.fill")
-                    .foregroundStyle(.tint)
-            }
+    // MARK: - Sidebar
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(repository.name)
-                    .font(.title3.weight(.semibold))
-                if let branch = repoVM.currentBranchName {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.triangle.branch")
-                            .imageScale(.small)
-                        Text(branch)
-                            .font(.caption.monospaced())
-                        if repoVM.hasUncommittedChanges {
-                            Text(L("•"))
-                                .foregroundStyle(.tertiary)
-                            Text(L("未コミット"))
-                                .font(.caption)
-                                .foregroundStyle(Color(nsColor: .systemOrange))
-                        }
-                    }
-                    .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            Picker("", selection: $selectedTab) {
-                ForEach(Tab.allCases) { tab in
-                    Label(tab.title, systemImage: tab.icon).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 240)
-            .labelsHidden()
+    private var sidebar: some View {
+        VStack(spacing: 0) {
+            SidebarTabBar(selection: $selectedTab)
+            Divider()
+            content
         }
-        .padding(.horizontal, DT.Space.lg)
-        .padding(.vertical, DT.Space.md)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch selectedTab {
+        case .changes:
+            ChangesSidebar(viewModel: changesVM)
+        case .history:
+            HistorySidebar(viewModel: historyVM)
+        }
+    }
+
+    // MARK: - Detail
+
+    @ViewBuilder
+    private var detail: some View {
+        switch selectedTab {
+        case .changes:
+            ChangesDetailPane(viewModel: changesVM, repoVM: repoVM)
+        case .history:
+            if let commit = historyVM.selectedCommit {
+                CommitDetailView(commit: commit, viewModel: historyVM)
+            } else {
+                pickCommitPrompt
+            }
+        }
+    }
+
+    private var pickCommitPrompt: some View {
+        VStack(spacing: DT.Space.sm) {
+            Spacer()
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text(L("左のリストからコミットを選択"))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
-// MARK: - Feedback Banner
+// MARK: - Operation Feedback Banner (extracted from old RepositoryDetailView)
 
 struct OperationFeedbackBanner: View {
     @ObservedObject var repoVM: RepositoryViewModel
@@ -163,8 +166,7 @@ struct OperationFeedbackBanner: View {
 
     private func banner(text: String, icon: String, color: Color) -> some View {
         HStack(spacing: DT.Space.sm) {
-            Image(systemName: icon)
-                .foregroundStyle(color)
+            Image(systemName: icon).foregroundStyle(color)
             Text(text)
                 .font(.callout)
                 .lineLimit(3)
@@ -198,7 +200,7 @@ struct OperationFeedbackBanner: View {
     }
 }
 
-// MARK: - Network Ops Toolbar Items
+// MARK: - Network Ops Toolbar Items (extracted from old RepositoryDetailView)
 
 struct NetworkOpsToolbarItems: View {
     @ObservedObject var repoVM: RepositoryViewModel
@@ -213,13 +215,10 @@ struct NetworkOpsToolbarItems: View {
 
     var body: some View {
         Group {
-            // Fetch
             Button {
                 Task { await repoVM.fetch() }
             } label: {
-                Label(L("取得"), systemImage: repoVM.isFetching
-                      ? "arrow.triangle.2.circlepath"
-                      : "arrow.triangle.2.circlepath")
+                Label(L("取得"), systemImage: "arrow.triangle.2.circlepath")
                     .rotationEffect(.degrees(repoVM.isFetching ? 360 : 0))
                     .animation(
                         repoVM.isFetching
@@ -231,7 +230,6 @@ struct NetworkOpsToolbarItems: View {
             .help(L("取得"))
             .disabled(repoVM.isBusy || !repoVM.hasRemotes)
 
-            // Pull
             Button {
                 Task { await repoVM.pull() }
             } label: {
@@ -257,7 +255,6 @@ struct NetworkOpsToolbarItems: View {
                 }
             }
 
-            // Push
             Button {
                 Task { await repoVM.push() }
             } label: {

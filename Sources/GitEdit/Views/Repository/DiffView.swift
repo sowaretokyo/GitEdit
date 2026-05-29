@@ -82,41 +82,92 @@ struct DiffView: View {
     }
 }
 
+// MARK: - Parser
+
 enum DiffLine: Hashable {
     case fileHeader(String)
     case hunkHeader(String)
-    case added(String)
-    case removed(String)
-    case context(String)
+    case added(content: String, newLine: Int)
+    case removed(content: String, oldLine: Int)
+    case context(content: String, oldLine: Int, newLine: Int)
 }
 
 enum DiffParser {
     static func parse(_ text: String) -> [DiffLine] {
-        text.split(separator: "\n", omittingEmptySubsequences: false).map(parseLine)
-    }
+        var result: [DiffLine] = []
+        var oldLine = 0
+        var newLine = 0
+        var inHunk = false
 
-    private static func parseLine(_ line: Substring) -> DiffLine {
-        let s = String(line)
-        if s.hasPrefix("diff --git") || s.hasPrefix("index ")
-            || s.hasPrefix("--- ") || s.hasPrefix("+++ ")
-            || s.hasPrefix("new file") || s.hasPrefix("deleted file")
-            || s.hasPrefix("old mode") || s.hasPrefix("new mode")
-            || s.hasPrefix("similarity") || s.hasPrefix("rename ")
-            || s.hasPrefix("copy ") || s.hasPrefix("Binary files") {
-            return .fileHeader(s)
+        for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let s = String(raw)
+
+            if s.hasPrefix("@@") {
+                if let r = s.range(of: #"-(\d+)"#, options: .regularExpression) {
+                    oldLine = (Int(s[r].dropFirst()) ?? 1) - 1
+                }
+                if let r = s.range(of: #"\+(\d+)"#, options: .regularExpression) {
+                    newLine = (Int(s[r].dropFirst()) ?? 1) - 1
+                }
+                inHunk = true
+                result.append(.hunkHeader(s))
+                continue
+            }
+
+            // File-level headers (before / between hunks)
+            if !inHunk || s.hasPrefix("diff --git") || s.hasPrefix("index ")
+                || s.hasPrefix("---") || s.hasPrefix("+++")
+                || s.hasPrefix("new file") || s.hasPrefix("deleted file")
+                || s.hasPrefix("old mode") || s.hasPrefix("new mode")
+                || s.hasPrefix("similarity") || s.hasPrefix("rename ")
+                || s.hasPrefix("copy ") || s.hasPrefix("Binary files") {
+                if !s.isEmpty {
+                    result.append(.fileHeader(s))
+                }
+                // A new "diff --git" starts a new file; reset hunk state.
+                if s.hasPrefix("diff --git") {
+                    inHunk = false
+                    oldLine = 0
+                    newLine = 0
+                }
+                continue
+            }
+
+            if s.hasPrefix("+") {
+                newLine += 1
+                result.append(.added(content: String(s.dropFirst()), newLine: newLine))
+            } else if s.hasPrefix("-") {
+                oldLine += 1
+                result.append(.removed(content: String(s.dropFirst()), oldLine: oldLine))
+            } else if s.hasPrefix(" ") {
+                oldLine += 1
+                newLine += 1
+                result.append(.context(content: String(s.dropFirst()), oldLine: oldLine, newLine: newLine))
+            } else if s.hasPrefix("\\") {
+                // "\ No newline at end of file" — skip
+                continue
+            } else if !s.isEmpty {
+                // unknown — treat as context to avoid losing content
+                result.append(.context(content: s, oldLine: oldLine, newLine: newLine))
+            }
         }
-        if s.hasPrefix("@@") {
-            return .hunkHeader(s)
-        }
-        if s.hasPrefix("+") { return .added(String(s.dropFirst())) }
-        if s.hasPrefix("-") { return .removed(String(s.dropFirst())) }
-        if s.hasPrefix(" ") { return .context(String(s.dropFirst())) }
-        return .context(s)
+
+        return result
     }
 }
 
+// MARK: - Rendering
+
 struct DiffLineRow: View {
     let line: DiffLine
+
+    private static let gutterWidth: CGFloat = 44
+    private static let markerWidth: CGFloat = 16
+
+    private var addedBackground: Color { Color(nsColor: .systemGreen).opacity(0.12) }
+    private var removedBackground: Color { Color(nsColor: .systemRed).opacity(0.12) }
+    private var addedGutterTint: Color { Color(nsColor: .systemGreen) }
+    private var removedGutterTint: Color { Color(nsColor: .systemRed) }
 
     var body: some View {
         switch line {
@@ -125,51 +176,75 @@ struct DiffLineRow: View {
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, DT.Space.md)
-                .padding(.vertical, 2)
+                .padding(.vertical, 3)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+
         case .hunkHeader(let s):
-            Text(s)
-                .font(.system(.caption, design: .monospaced).weight(.medium))
-                .foregroundStyle(.tint)
-                .padding(.horizontal, DT.Space.md)
-                .padding(.vertical, 4)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.accentColor.opacity(0.08))
-        case .added(let s):
             HStack(spacing: 0) {
-                Text("+")
-                    .frame(width: 16)
-                    .foregroundStyle(Color(nsColor: .systemGreen))
+                Rectangle()
+                    .fill(Color.accentColor.opacity(0.15))
+                    .frame(width: Self.gutterWidth * 2 + Self.markerWidth)
                 Text(s)
-                    .font(.system(.callout, design: .monospaced))
+                    .font(.system(.caption, design: .monospaced).weight(.medium))
+                    .foregroundStyle(.tint)
+                    .padding(.horizontal, DT.Space.sm)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, DT.Space.sm)
-            .padding(.vertical, 0.5)
-            .background(Color(nsColor: .systemGreen).opacity(0.13))
-        case .removed(let s):
+            .padding(.vertical, 3)
+            .background(Color.accentColor.opacity(0.08))
+
+        case .added(let content, let newLine):
             HStack(spacing: 0) {
-                Text("-")
-                    .frame(width: 16)
-                    .foregroundStyle(Color(nsColor: .systemRed))
-                Text(s)
+                gutterCell(text: "", tint: addedGutterTint)
+                gutterCell(text: "\(newLine)", tint: addedGutterTint)
+                marker(symbol: "+", color: addedGutterTint)
+                Text(content)
                     .font(.system(.callout, design: .monospaced))
+                    .padding(.leading, DT.Space.xs)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, DT.Space.sm)
-            .padding(.vertical, 0.5)
-            .background(Color(nsColor: .systemRed).opacity(0.13))
-        case .context(let s):
+            .background(addedBackground)
+
+        case .removed(let content, let oldLine):
             HStack(spacing: 0) {
-                Text(" ")
-                    .frame(width: 16)
-                Text(s)
+                gutterCell(text: "\(oldLine)", tint: removedGutterTint)
+                gutterCell(text: "", tint: removedGutterTint)
+                marker(symbol: "−", color: removedGutterTint)
+                Text(content)
                     .font(.system(.callout, design: .monospaced))
+                    .padding(.leading, DT.Space.xs)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, DT.Space.sm)
-            .padding(.vertical, 0.5)
+            .background(removedBackground)
+
+        case .context(let content, let oldLine, let newLine):
+            HStack(spacing: 0) {
+                gutterCell(text: "\(oldLine)", tint: .tertiary)
+                gutterCell(text: "\(newLine)", tint: .tertiary)
+                marker(symbol: " ", color: .clear)
+                Text(content)
+                    .font(.system(.callout, design: .monospaced))
+                    .padding(.leading, DT.Space.xs)
+                Spacer(minLength: 0)
+            }
         }
+    }
+
+    private func gutterCell<S: ShapeStyle>(text: String, tint: S) -> some View {
+        Text(text)
+            .font(.system(.caption, design: .monospaced))
+            .foregroundStyle(tint)
+            .frame(width: Self.gutterWidth, alignment: .trailing)
+            .padding(.trailing, 8)
+            .padding(.vertical, 1)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
+    }
+
+    private func marker(symbol: String, color: Color) -> some View {
+        Text(symbol)
+            .font(.system(.caption, design: .monospaced).weight(.bold))
+            .foregroundStyle(color)
+            .frame(width: Self.markerWidth, alignment: .center)
     }
 }

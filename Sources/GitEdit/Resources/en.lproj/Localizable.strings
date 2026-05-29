@@ -106,6 +106,14 @@
 "左のリストからコミットを選択" = "Pick a commit from the list";
 "変更ファイル" = "Changed Files";
 "ファイル変更なし" = "No file changes";
+"Current Repository" = "Current Repository";
+"未選択" = "None selected";
+"フィルター" = "Filter";
+"%d 件の変更" = "%d changes";
+"ローカル変更はありません" = "No local changes";
+"このリポジトリにはまだコミット待ちの変更はありません。" = "There are no uncommitted changes in this repository.";
+"origin に %d 件のコミットを反映できます" = "You have %d local commits waiting to be pushed";
+"ツールバーの「反映」ボタンを押してください。" = "Press \"Push\" in the toolbar.";
 
 /* ===== Branch picker ===== */
 "ブランチ未選択" = "No branch";

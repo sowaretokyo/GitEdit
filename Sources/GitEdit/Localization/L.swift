@@ -1,23 +1,26 @@
 import Foundation
 
-/// Module-aware localized string lookup.
+/// Module-aware localized string lookup with user override.
 ///
-/// Strategy: the key IS the Japanese source text. When no translation is found
-/// in the user's locale, we fall back to the key itself, so Japanese readers
-/// always see Japanese without needing a full ja.lproj.
-///
-/// English (and future locales) live in their respective `.lproj` directories
-/// under `Sources/GitEdit/Resources/`.
+/// - If the user has explicitly chosen a language in Settings, look it up in
+///   that locale's `.lproj` directly so the choice doesn't require app restart.
+/// - Otherwise, fall back to `Bundle.module`'s standard lookup (system locale).
+/// - In all cases, when no translation is found, return the key itself
+///   (which is the Japanese source string).
 @inline(__always)
 func L(_ key: String) -> String {
-    NSLocalizedString(key, tableName: nil, bundle: .module, value: key, comment: "")
+    if let code = AppLanguage.current.bundleLanguageCode,
+       let lprojPath = Bundle.module.path(forResource: code, ofType: "lproj"),
+       let lprojBundle = Bundle(path: lprojPath) {
+        return NSLocalizedString(key, tableName: nil, bundle: lprojBundle, value: key, comment: "")
+    }
+    return NSLocalizedString(key, tableName: nil, bundle: .module, value: key, comment: "")
 }
 
-/// Localized string with `printf`-style formatting.
-/// Example: `L("%d / %d", staged, total)`
+/// `printf`-style formatted localized string.
 @inline(__always)
 func L(_ key: String, _ args: CVarArg...) -> String {
-    let format = NSLocalizedString(key, tableName: nil, bundle: .module, value: key, comment: "")
+    let format = L(key)
     if args.isEmpty { return format }
     return String(format: format, locale: Locale.current, arguments: args)
 }

@@ -5,12 +5,14 @@ import AppKit
 struct GitEditApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var store = RepositoryStore()
+    @AppStorage(AppLanguage.storageKey) private var appLanguage: String = AppLanguage.system.rawValue
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(store)
                 .frame(minWidth: 1100, minHeight: 680)
+                .id(appLanguage)
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: false))
@@ -21,6 +23,11 @@ struct GitEditApp: App {
                 }
                 .keyboardShortcut("o", modifiers: .command)
             }
+        }
+
+        Settings {
+            SettingsView()
+                .id(appLanguage)
         }
     }
 }

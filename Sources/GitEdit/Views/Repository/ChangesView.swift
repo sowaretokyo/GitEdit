@@ -9,11 +9,7 @@ struct ChangesView: View {
                 .frame(minWidth: 300, idealWidth: 360)
 
             VStack(spacing: 0) {
-                DiffView(
-                    diffText: viewModel.diffText,
-                    isLoading: viewModel.isLoadingDiff,
-                    selectedFile: viewModel.selectedChange?.displayPath
-                )
+                DiffEditView(viewModel: viewModel)
                 Divider()
                 CommitMessageEditor(viewModel: viewModel)
                     .padding(DT.Space.lg)
@@ -72,7 +68,9 @@ struct ChangesView: View {
                                     Task { await viewModel.toggleInclusion(of: change) }
                                 }
                             )
-                            .onTapGesture { viewModel.select(change) }
+                            .onTapGesture {
+                                Task { await viewModel.select(change) }
+                            }
                         }
                     }
                     .padding(.horizontal, DT.Space.xs)

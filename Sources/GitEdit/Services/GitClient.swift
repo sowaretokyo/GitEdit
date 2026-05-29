@@ -181,6 +181,15 @@ final class GitClient: @unchecked Sendable {
         return try? String(contentsOf: url, encoding: .utf8)
     }
 
+    func writeFile(path: String, content: String) throws {
+        let url = repositoryURL.appendingPathComponent(path)
+        let dir = url.deletingLastPathComponent()
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        try content.write(to: url, atomically: true, encoding: .utf8)
+    }
+
     // MARK: - History
 
     func recentCommits(limit: Int = 200) async throws -> [Commit] {

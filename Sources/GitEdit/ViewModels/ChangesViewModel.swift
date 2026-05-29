@@ -3,10 +3,34 @@ import SwiftUI
 
 @MainActor
 final class ChangesViewModel: ObservableObject {
+    enum DiffEditorMode: String, CaseIterable, Identifiable {
+        case edit, diff
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .edit: return L("編集")
+            case .diff: return L("差分")
+            }
+        }
+    }
+
+    // MARK: - File list & selection
     @Published var changes: [FileChange] = []
     @Published var selectedPath: String?
+
+    // MARK: - Diff view
     @Published var diffText: String = ""
     @Published var isLoadingDiff: Bool = false
+
+    // MARK: - Editor view
+    @Published var editorViewMode: DiffEditorMode = .edit
+    @Published var editorFileContent: String = ""
+    @Published var hasEditorUnsavedChanges: Bool = false
+    @Published var editorAddedLines: Set<Int> = []
+    @Published var selectedFileIsEditable: Bool = false
+    @Published var isSavingEditor: Bool = false
+
+    // MARK: - Commit
     @Published var commitMessage: String = ""
     @Published var commitHistory: [String] = []
     @Published var currentBranch: String?
@@ -24,9 +48,7 @@ final class ChangesViewModel: ObservableObject {
         return changes.first { $0.path == path }
     }
 
-    var stagedCount: Int {
-        changes.filter { $0.willBeCommitted }.count
-    }
+    var stagedCount: Int { changes.filter { $0.willBeCommitted }.count }
 
     var allStaged: Bool {
         let stageable = changes.filter { !$0.isIgnored }
@@ -47,9 +69,17 @@ final class ChangesViewModel: ObservableObject {
             let prev = selectedPath
             changes = try await git.status()
             if prev == nil || !changes.contains(where: { $0.path == prev }) {
-                selectedPath = changes.first?.path
+                if let first = changes.first {
+                    await select(first)
+                } else {
+                    selectedPath = nil
+                    resetEditorState()
+                    diffText = ""
+                }
+            } else {
+                await refreshDiffForSelection()
+                await loadEditorContentIfNeeded()
             }
-            await refreshDiffForSelection()
         } catch {
             lastError = error.localizedDescription
         }
@@ -63,12 +93,18 @@ final class ChangesViewModel: ObservableObject {
         currentBranch = try? await git.currentBranch()
     }
 
-    // MARK: - Selection / Diff
+    // MARK: - Selection
 
-    func select(_ change: FileChange) {
-        guard selectedPath != change.path else { return }
+    func select(_ change: FileChange) async {
+        if selectedPath == change.path { return }
+
+        if hasEditorUnsavedChanges {
+            await saveEditorContent()
+        }
+
         selectedPath = change.path
-        Task { await refreshDiffForSelection() }
+        await refreshDiffForSelection()
+        await loadEditorContentIfNeeded()
     }
 
     func refreshDiffForSelection() async {
@@ -94,6 +130,92 @@ final class ChangesViewModel: ObservableObject {
         } catch {
             diffText = L("差分の取得に失敗: %@", error.localizedDescription)
         }
+    }
+
+    // MARK: - Editor
+
+    private func loadEditorContentIfNeeded() async {
+        guard let change = selectedChange else {
+            resetEditorState()
+            return
+        }
+        selectedFileIsEditable = computeIsEditable(for: change)
+
+        guard selectedFileIsEditable else {
+            resetEditorState()
+            return
+        }
+
+        if let content = git.readFileFromWorkTree(path: change.path) {
+            editorFileContent = content
+            hasEditorUnsavedChanges = false
+            editorAddedLines = DiffLineAnalyzer.addedLines(
+                from: diffText,
+                isUntracked: change.isUntracked,
+                content: content
+            )
+        } else {
+            resetEditorState()
+        }
+    }
+
+    private func resetEditorState() {
+        editorFileContent = ""
+        editorAddedLines = []
+        hasEditorUnsavedChanges = false
+    }
+
+    private func computeIsEditable(for change: FileChange) -> Bool {
+        // Deleted files have no current content.
+        if change.indexStatus == "D" || change.workingStatus == "D" {
+            return false
+        }
+        guard let content = git.readFileFromWorkTree(path: change.path) else {
+            return false
+        }
+        // Heuristic: binary files contain null bytes in the first 8KB.
+        let sample = content.prefix(8192)
+        if sample.contains("\0") { return false }
+        return true
+    }
+
+    func updateEditorContent(_ content: String) {
+        if editorFileContent != content {
+            editorFileContent = content
+            hasEditorUnsavedChanges = true
+        }
+    }
+
+    func saveEditorContent() async {
+        guard let change = selectedChange, selectedFileIsEditable else { return }
+        guard hasEditorUnsavedChanges else { return }
+        isSavingEditor = true
+        defer { isSavingEditor = false }
+        do {
+            try git.writeFile(path: change.path, content: editorFileContent)
+            hasEditorUnsavedChanges = false
+            // Refresh diff and re-compute highlights.
+            await refreshDiffForSelection()
+            editorAddedLines = DiffLineAnalyzer.addedLines(
+                from: diffText,
+                isUntracked: change.isUntracked,
+                content: editorFileContent
+            )
+            // Refresh status (file might now be clean/dirty differently).
+            let prev = selectedPath
+            changes = (try? await git.status()) ?? changes
+            selectedPath = prev
+        } catch {
+            lastError = L("保存に失敗: %@", error.localizedDescription)
+        }
+    }
+
+    func setEditorViewMode(_ mode: DiffEditorMode) async {
+        if editorViewMode == mode { return }
+        if mode == .diff && hasEditorUnsavedChanges {
+            await saveEditorContent()
+        }
+        editorViewMode = mode
     }
 
     // MARK: - Staging
@@ -133,6 +255,10 @@ final class ChangesViewModel: ObservableObject {
         guard stagedCount > 0 else {
             lastError = L("ステージされた変更がありません。チェックボックスでファイルを含めてください。")
             return
+        }
+        // Auto-save any pending editor changes before committing.
+        if hasEditorUnsavedChanges {
+            await saveEditorContent()
         }
         isCommitting = true
         defer { isCommitting = false }

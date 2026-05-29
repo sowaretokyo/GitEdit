@@ -3,6 +3,16 @@
 /* ===== App & menus ===== */
 "GitEdit について" = "About GitEdit";
 "リポジトリを追加…" = "Add Repository…";
+"設定…" = "Settings…";
+
+/* ===== Settings ===== */
+"一般" = "General";
+"情報" = "About";
+"表示" = "Display";
+"言語" = "Language";
+"システムに従う" = "Follow System";
+"選択した言語は即座に反映されます。" = "Changes apply immediately.";
+"バージョン %@" = "Version %@";
 
 /* ===== Welcome ===== */
 "Git をもっとシンプルに、もっと安心に。" = "Git, simpler and safer.";
@@ -24,6 +34,8 @@
 /* ===== Repository detail ===== */
 "変更" = "Changes";
 "履歴" = "History";
+"未コミット" = "Uncommitted";
+"•" = "•";
 
 /* ===== Changes view ===== */
 "変更されたファイル" = "Changed Files";
@@ -36,6 +48,13 @@
 "差分なし" = "No diff";
 "%d / %d" = "%d / %d";
 "%d 件をコミット" = "%d to commit";
+
+/* ===== Editor ===== */
+"編集" = "Edit";
+"保存" = "Save";
+"未保存の変更があります" = "Unsaved changes";
+"このファイルは編集できません（バイナリまたは削除済み）" = "This file is not editable (binary or deleted)";
+"保存に失敗: %@" = "Save failed: %@";
 
 /* ===== Commit editor ===== */
 "コミット" = "Commit";
@@ -57,6 +76,10 @@
 "ローカル" = "Local";
 "リモート" = "Remote";
 "このブランチ" = "Current";
+"ブランチを切り替えました: %@" = "Switched to %@";
+"ブランチを作成しました: %@" = "Created %@";
+"マージしました: %@" = "Merged %@";
+"ブランチを削除しました: %@" = "Deleted %@";
 
 /* ===== Network ops ===== */
 "取得" = "Fetch";
@@ -67,10 +90,14 @@
 "取り込み中…" = "Pulling…";
 "反映中…" = "Pushing…";
 "取得が完了しました" = "Fetch complete";
+"取り込みが完了しました" = "Pull complete";
+"反映が完了しました" = "Push complete";
+"ブランチを公開しました" = "Branch published";
 "%d 件取り込みました" = "Pulled %d";
 "%d 件反映しました" = "Pushed %d";
 "未公開のブランチ" = "Unpublished branch";
 "このブランチはリモートに公開されていません" = "This branch hasn't been published yet";
+"コマンドの実行に失敗しました" = "Command failed";
 
 /* ===== Create branch ===== */
 "新しいブランチ" = "New Branch";
@@ -91,12 +118,15 @@
 "クローン中…" = "Cloning…";
 "ローカルの Git リポジトリを選択してください" = "Pick a local Git repository";
 "Git リポジトリではありません" = "Not a Git repository";
+"保存先を選択" = "Choose a destination";
 
 /* ===== Init ===== */
 "新しいリポジトリを作成" = "Create a New Repository";
 "空のフォルダを選んで Git リポジトリを初期化します" = "Pick an empty folder to initialize";
 "フォルダ" = "Folder";
 "作成" = "Create";
+"初期ブランチ" = "Initial branch";
+"初期化するフォルダを選択" = "Choose a folder to initialize";
 
 /* ===== Confirmations / errors ===== */
 "キャンセル" = "Cancel";
@@ -120,6 +150,7 @@
 "取り込みに失敗: %@" = "Pull failed: %@";
 "反映に失敗: %@" = "Push failed: %@";
 "マージに失敗: %@" = "Merge failed: %@";
+"削除に失敗: %@" = "Delete failed: %@";
 
 /* ===== About ===== */
 "GitEdit" = "GitEdit";

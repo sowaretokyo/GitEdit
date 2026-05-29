@@ -67,6 +67,7 @@
 "リポジトリ" = "Repositories";
 "リポジトリがありません" = "No Repositories";
 "+ ボタンから追加" = "Add one via the + button";
+"下のボタンから追加" = "Add one from the button below";
 "リポジトリを追加" = "Add a repository";
 
 /* ===== Repository detail ===== */
@@ -86,6 +87,7 @@
 "差分なし" = "No diff";
 "%d / %d" = "%d / %d";
 "%d 件をコミット" = "%d to commit";
+"Description（任意）" = "Description (optional)";
 
 /* ===== Editor ===== */
 "編集" = "Edit";

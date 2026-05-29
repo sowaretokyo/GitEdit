@@ -4,11 +4,16 @@ struct DiffView: View {
     let diffText: String
     let isLoading: Bool
     let selectedFile: String?
+    /// When false the path-strip header is suppressed (e.g. when the parent
+    /// already shows the same path, like in `DiffEditView`).
+    var showsHeader: Bool = true
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Divider()
+            if showsHeader {
+                header
+                Divider()
+            }
             content
         }
     }
@@ -48,7 +53,7 @@ struct DiffView: View {
                 subtitle: nil
             )
         } else {
-            ScrollView([.vertical, .horizontal]) {
+            ScrollView(.vertical) {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     let parsed = DiffParser.parse(diffText)
                     ForEach(parsed.indices, id: \.self) { idx in

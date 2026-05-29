@@ -96,7 +96,8 @@ struct DiffEditView: View {
                 DiffView(
                     diffText: viewModel.diffText,
                     isLoading: viewModel.isLoadingDiff,
-                    selectedFile: change.displayPath
+                    selectedFile: change.displayPath,
+                    showsHeader: false
                 )
                 if !viewModel.selectedFileIsEditable {
                     nonEditableHint(change: change)

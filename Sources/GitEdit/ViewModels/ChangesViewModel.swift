@@ -23,7 +23,9 @@ final class ChangesViewModel: ObservableObject {
     @Published var isLoadingDiff: Bool = false
 
     // MARK: - Editor view
-    @Published var editorViewMode: DiffEditorMode = .edit
+    // Default is `.diff` — matches GitHub Desktop, and avoids the current
+    // NSTextView rendering bug in `.edit` mode (TODO: fix CodeEditor).
+    @Published var editorViewMode: DiffEditorMode = .diff
     @Published var editorFileContent: String = ""
     @Published var hasEditorUnsavedChanges: Bool = false
     @Published var editorAddedLines: Set<Int> = []
@@ -32,6 +34,7 @@ final class ChangesViewModel: ObservableObject {
 
     // MARK: - Commit
     @Published var commitMessage: String = ""
+    @Published var commitDescription: String = ""
     @Published var commitHistory: [String] = []
     @Published var currentBranch: String?
     @Published var isCommitting: Bool = false
@@ -250,12 +253,16 @@ final class ChangesViewModel: ObservableObject {
     // MARK: - Commit
 
     func commit() async {
-        let trimmed = commitMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        let summary = commitMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = commitDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !summary.isEmpty else { return }
         guard stagedCount > 0 else {
             lastError = L("ステージされた変更がありません。チェックボックスでファイルを含めてください。")
             return
         }
+        // Combine summary + description into a single git commit message.
+        let fullMessage = body.isEmpty ? summary : "\(summary)\n\n\(body)"
+
         // Auto-save any pending editor changes before committing.
         if hasEditorUnsavedChanges {
             await saveEditorContent()
@@ -263,8 +270,9 @@ final class ChangesViewModel: ObservableObject {
         isCommitting = true
         defer { isCommitting = false }
         do {
-            try await git.commit(message: trimmed)
+            try await git.commit(message: fullMessage)
             commitMessage = ""
+            commitDescription = ""
             await refreshAll()
         } catch {
             lastError = error.localizedDescription

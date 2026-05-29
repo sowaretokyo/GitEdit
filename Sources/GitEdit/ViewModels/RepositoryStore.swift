@@ -16,9 +16,9 @@ final class RepositoryStore: ObservableObject {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.prompt = "選択"
-        panel.message = "Git リポジトリのフォルダを選択してください"
-        panel.title = "リポジトリを追加"
+        panel.prompt = L("選択")
+        panel.message = L("ローカルの Git リポジトリを選択してください")
+        panel.title = L("リポジトリを追加")
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         Task { await addRepository(at: url) }
@@ -28,8 +28,8 @@ final class RepositoryStore: ObservableObject {
         let client = GitClient(repository: url)
         guard await client.isInsideRepository() else {
             showAlert(
-                title: "Git リポジトリではありません",
-                message: "\(url.lastPathComponent) は Git で管理されていません。\nまず `git init` するか、別のフォルダを選んでください。"
+                title: L("Git リポジトリではありません"),
+                message: L("%@ は Git リポジトリではありません", url.lastPathComponent)
             )
             return
         }

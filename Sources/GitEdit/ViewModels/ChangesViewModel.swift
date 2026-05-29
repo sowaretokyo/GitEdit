@@ -92,7 +92,7 @@ final class ChangesViewModel: ObservableObject {
                 diffText = try await git.diffAgainstHEAD(path: change.path)
             }
         } catch {
-            diffText = "差分の取得に失敗: \(error.localizedDescription)"
+            diffText = L("差分の取得に失敗: %@", error.localizedDescription)
         }
     }
 
@@ -131,7 +131,7 @@ final class ChangesViewModel: ObservableObject {
         let trimmed = commitMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         guard stagedCount > 0 else {
-            lastError = "ステージされた変更がありません。チェックボックスでファイルを含めてください。"
+            lastError = L("ステージされた変更がありません。チェックボックスでファイルを含めてください。")
             return
         }
         isCommitting = true

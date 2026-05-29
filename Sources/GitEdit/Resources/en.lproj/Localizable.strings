@@ -1,0 +1,125 @@
+/* GitEdit - English localization */
+
+/* ===== App & menus ===== */
+"GitEdit について" = "About GitEdit";
+"リポジトリを追加…" = "Add Repository…";
+
+/* ===== Welcome ===== */
+"Git をもっとシンプルに、もっと安心に。" = "Git, simpler and safer.";
+"ローカルのリポジトリを追加" = "Add a Local Repository";
+"Mac 内の既存リポジトリを取り込む" = "Bring in an existing repository on your Mac";
+"クローン" = "Clone";
+"URL を指定してリポジトリを複製" = "Duplicate a repository from a URL";
+"新しいリポジトリを作成" = "Create a New Repository";
+"空のフォルダで git init" = "Initialize an empty folder with git init";
+"近日" = "Soon";
+"Made with ☕️ in Tokyo" = "Made with ☕️ in Tokyo";
+
+/* ===== Sidebar ===== */
+"リポジトリ" = "Repositories";
+"リポジトリがありません" = "No Repositories";
+"+ ボタンから追加" = "Add one via the + button";
+"リポジトリを追加" = "Add a repository";
+
+/* ===== Repository detail ===== */
+"変更" = "Changes";
+"履歴" = "History";
+
+/* ===== Changes view ===== */
+"変更されたファイル" = "Changed Files";
+"変更はありません" = "No Changes";
+"作業ツリーはクリーンです ✨" = "Working tree is clean ✨";
+"一部のみ ステージ" = "Partially staged";
+"ファイル未選択" = "No file selected";
+"左のリストからファイルを選択" = "Pick a file from the list";
+"差分がここに表示されます" = "The diff will appear here";
+"差分なし" = "No diff";
+"%d / %d" = "%d / %d";
+"%d 件をコミット" = "%d to commit";
+
+/* ===== Commit editor ===== */
+"コミット" = "Commit";
+"コミットメッセージ（↑↓ で過去のメッセージを呼び出し）" = "Commit message (↑↓ recalls history)";
+"↑↓ で履歴" = "↑↓ for history";
+"ステージされた変更がありません。チェックボックスでファイルを含めてください。" = "Nothing is staged. Use the checkboxes to include files.";
+
+/* ===== History view ===== */
+"コミット履歴" = "Commit History";
+"コミットがありません" = "No Commits";
+"左のリストからコミットを選択" = "Pick a commit from the list";
+"変更ファイルの差分は Phase 3 で対応予定" = "Changed-file diffs coming in a later phase";
+
+/* ===== Branch picker ===== */
+"ブランチ未選択" = "No branch";
+"ブランチを検索" = "Search branches";
+"見つかりません" = "Nothing found";
+"新しいブランチを作成…" = "New Branch…";
+"ローカル" = "Local";
+"リモート" = "Remote";
+"このブランチ" = "Current";
+
+/* ===== Network ops ===== */
+"取得" = "Fetch";
+"取り込み" = "Pull";
+"反映" = "Push";
+"公開" = "Publish";
+"取得中…" = "Fetching…";
+"取り込み中…" = "Pulling…";
+"反映中…" = "Pushing…";
+"取得が完了しました" = "Fetch complete";
+"%d 件取り込みました" = "Pulled %d";
+"%d 件反映しました" = "Pushed %d";
+"未公開のブランチ" = "Unpublished branch";
+"このブランチはリモートに公開されていません" = "This branch hasn't been published yet";
+
+/* ===== Create branch ===== */
+"新しいブランチ" = "New Branch";
+"ブランチ名を入力し、起点を選択してください" = "Enter a name and pick a starting point";
+"ブランチ名" = "Branch name";
+"例: feature/login" = "e.g. feature/login";
+"起点" = "Starting point";
+"作成して切替" = "Create and Switch";
+
+/* ===== Clone ===== */
+"リポジトリをクローン" = "Clone Repository";
+"Git リポジトリの URL とローカルの保存先を指定してください" = "Provide a Git URL and a local destination";
+"URL" = "URL";
+"保存先" = "Destination";
+"選択されていません" = "Not selected";
+"選択…" = "Choose…";
+"選択" = "Choose";
+"クローン中…" = "Cloning…";
+"ローカルの Git リポジトリを選択してください" = "Pick a local Git repository";
+"Git リポジトリではありません" = "Not a Git repository";
+
+/* ===== Init ===== */
+"新しいリポジトリを作成" = "Create a New Repository";
+"空のフォルダを選んで Git リポジトリを初期化します" = "Pick an empty folder to initialize";
+"フォルダ" = "Folder";
+"作成" = "Create";
+
+/* ===== Confirmations / errors ===== */
+"キャンセル" = "Cancel";
+"OK" = "OK";
+"エラー" = "Error";
+"未コミットの変更があります" = "You have uncommitted changes";
+"先に変更をコミットするか退避してから切り替えてください。" = "Commit or stash your changes before switching.";
+"このまま切り替え" = "Switch Anyway";
+
+/* ===== Status descriptions ===== */
+"未ステージ" = "Unstaged";
+
+/* ===== Errors with parameters ===== */
+"%@ は Git リポジトリではありません" = "%@ is not a Git repository";
+"差分の取得に失敗: %@" = "Failed to load diff: %@";
+"クローンに失敗: %@" = "Clone failed: %@";
+"初期化に失敗: %@" = "Init failed: %@";
+"切替に失敗: %@" = "Switch failed: %@";
+"作成に失敗: %@" = "Create failed: %@";
+"取得に失敗: %@" = "Fetch failed: %@";
+"取り込みに失敗: %@" = "Pull failed: %@";
+"反映に失敗: %@" = "Push failed: %@";
+"マージに失敗: %@" = "Merge failed: %@";
+
+/* ===== About ===== */
+"GitEdit" = "GitEdit";

@@ -5,7 +5,7 @@ struct CommitDetailView: View {
 
     private static let absoluteFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "ja_JP")
+        f.locale = Locale.current
         f.dateStyle = .long
         f.timeStyle = .short
         return f
@@ -54,7 +54,7 @@ struct CommitDetailView: View {
                 HStack(spacing: DT.Space.sm) {
                     Image(systemName: "doc.text")
                         .foregroundStyle(.tertiary)
-                    Text("変更ファイルの差分は Phase 3 で対応予定")
+                    Text(L("変更ファイルの差分は Phase 3 で対応予定"))
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }

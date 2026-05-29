@@ -8,12 +8,13 @@ final class GitClient: @unchecked Sendable {
 
         var errorDescription: String? {
             switch self {
-            case .commandFailed(let status, let stderr, let command):
-                return "git \(command.joined(separator: " "))\n失敗 (終了コード \(status))\n\(stderr)"
+            case .commandFailed(_, let stderr, _):
+                let trimmed = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? L("コマンドの実行に失敗しました") : trimmed
             case .notARepository(let url):
-                return "\(url.path) は Git リポジトリではありません"
+                return L("%@ は Git リポジトリではありません", url.path)
             case .parseFailure(let msg):
-                return "Git 出力のパース失敗: \(msg)"
+                return msg
             }
         }
     }
@@ -26,20 +27,28 @@ final class GitClient: @unchecked Sendable {
 
     @discardableResult
     func run(_ arguments: String...) async throws -> String {
-        try await run(arguments)
+        try await Self.runGit(arguments, cwd: repositoryURL)
     }
 
     @discardableResult
     func run(_ arguments: [String]) async throws -> String {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+        try await Self.runGit(arguments, cwd: repositoryURL)
+    }
+
+    // MARK: - Static runner (used by clone/init that don't have a repo yet)
+
+    @discardableResult
+    static func runGit(_ arguments: [String], cwd: URL? = nil) async throws -> String {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
             process.arguments = ["git"] + arguments
-            process.currentDirectoryURL = repositoryURL
+            if let cwd { process.currentDirectoryURL = cwd }
 
             var env = ProcessInfo.processInfo.environment
             env["LC_ALL"] = "C.UTF-8"
             env["GIT_TERMINAL_PROMPT"] = "0"
+            // Allow askpass / SSH agent to work but suppress interactive prompts.
             process.environment = env
 
             let stdout = Pipe()
@@ -54,9 +63,9 @@ final class GitClient: @unchecked Sendable {
                 let errStr = String(data: errData, encoding: .utf8) ?? ""
 
                 if proc.terminationStatus == 0 {
-                    continuation.resume(returning: outStr)
+                    cont.resume(returning: outStr)
                 } else {
-                    continuation.resume(throwing: GitError.commandFailed(
+                    cont.resume(throwing: GitError.commandFailed(
                         status: proc.terminationStatus,
                         stderr: errStr,
                         command: arguments
@@ -67,12 +76,25 @@ final class GitClient: @unchecked Sendable {
             do {
                 try process.run()
             } catch {
-                continuation.resume(throwing: error)
+                cont.resume(throwing: error)
             }
         }
     }
 
-    // MARK: - Repo
+    // MARK: - Repository-less ops
+
+    static func clone(url: String, into destination: URL) async throws {
+        let parent = destination.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        try await runGit(["clone", "--progress", url, destination.path])
+    }
+
+    static func initRepository(at directory: URL, initialBranch: String = "main") async throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try await runGit(["init", "-b", initialBranch, directory.path])
+    }
+
+    // MARK: - Repo metadata
 
     func isInsideRepository() async -> Bool {
         do {
@@ -88,11 +110,31 @@ final class GitClient: @unchecked Sendable {
         return output.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    func currentBranchUpstream() async -> (upstream: String, ahead: Int, behind: Int)? {
+        do {
+            let upstream = try await run("rev-parse", "--abbrev-ref", "@{upstream}")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let ab = try await run("rev-list", "--left-right", "--count", "HEAD...@{upstream}")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let parts = ab.split(whereSeparator: { $0 == "\t" || $0 == " " }).map(String.init)
+            let ahead = parts.first.flatMap(Int.init) ?? 0
+            let behind = parts.dropFirst().first.flatMap(Int.init) ?? 0
+            return (upstream, ahead, behind)
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: - Status
 
     func status() async throws -> [FileChange] {
         let output = try await run("status", "--porcelain=v1", "-z", "-uall")
         return GitStatusParser.parse(porcelainV1Z: output)
+    }
+
+    func hasUncommittedChanges() async -> Bool {
+        let output = (try? await run("status", "--porcelain")) ?? ""
+        return !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     func recentCommitMessages(limit: Int = 100) async throws -> [String] {
@@ -130,12 +172,10 @@ final class GitClient: @unchecked Sendable {
 
     // MARK: - Diff
 
-    /// Combined diff (worktree + index) against HEAD for a single file.
     func diffAgainstHEAD(path: String) async throws -> String {
         try await run("diff", "HEAD", "--no-color", "--", path)
     }
 
-    /// Read file content from the working tree (for untracked files).
     func readFileFromWorkTree(path: String) -> String? {
         let url = repositoryURL.appendingPathComponent(path)
         return try? String(contentsOf: url, encoding: .utf8)
@@ -158,8 +198,8 @@ final class GitClient: @unchecked Sendable {
                 .split(separator: Character(US), omittingEmptySubsequences: false)
                 .map(String.init)
             guard fields.count >= 6 else { continue }
-            let trimmedDate = fields[2].trimmingCharacters(in: .whitespacesAndNewlines)
-            let date = formatter.date(from: trimmedDate) ?? .distantPast
+            let dateStr = fields[2].trimmingCharacters(in: .whitespacesAndNewlines)
+            let date = formatter.date(from: dateStr) ?? .distantPast
             commits.append(Commit(
                 id: fields[0].trimmingCharacters(in: .whitespacesAndNewlines),
                 shortSHA: fields[1],
@@ -171,5 +211,124 @@ final class GitClient: @unchecked Sendable {
             ))
         }
         return commits
+    }
+
+    // MARK: - Branches
+
+    func listLocalBranches() async throws -> [Branch] {
+        let output = try await run(
+            "for-each-ref",
+            "--sort=-committerdate",
+            "--format=\(GitBranchParser.formatTemplate)",
+            "refs/heads"
+        )
+        return GitBranchParser.parse(output, kind: .local)
+    }
+
+    func listRemoteBranches() async throws -> [Branch] {
+        let remoteNames = (try? await remotes().map(\.name)) ?? []
+        let output = try await run(
+            "for-each-ref",
+            "--sort=-committerdate",
+            "--format=\(GitBranchParser.formatTemplate)",
+            "refs/remotes"
+        )
+        let raw = GitBranchParser.parse(output, kind: .remote(name: ""))
+        // Each raw branch's `name` is like "origin/main". Re-tag with detected remote prefix.
+        return raw.map { b in
+            let remoteName: String = {
+                if let match = remoteNames.first(where: { b.name.hasPrefix("\($0)/") }) {
+                    return match
+                }
+                return String(b.name.split(separator: "/").first ?? "origin")
+            }()
+            return Branch(
+                name: b.name,
+                kind: .remote(name: remoteName),
+                isCurrent: false,
+                upstream: nil,
+                upstreamGone: false,
+                ahead: b.ahead,
+                behind: b.behind,
+                sha: b.sha,
+                subject: b.subject,
+                authorName: b.authorName,
+                lastCommitDate: b.lastCommitDate
+            )
+        }
+    }
+
+    func createBranch(name: String, startingFrom: String? = nil, checkout: Bool = true) async throws {
+        if checkout {
+            var args = ["checkout", "-b", name]
+            if let start = startingFrom { args.append(start) }
+            try await run(args)
+        } else {
+            var args = ["branch", name]
+            if let start = startingFrom { args.append(start) }
+            try await run(args)
+        }
+    }
+
+    func switchBranch(name: String) async throws {
+        try await run("switch", name)
+    }
+
+    func deleteBranch(name: String, force: Bool = false) async throws {
+        try await run("branch", force ? "-D" : "-d", name)
+    }
+
+    func merge(branch: String, noFastForward: Bool = false) async throws {
+        var args = ["merge"]
+        if noFastForward { args.append("--no-ff") }
+        args.append(branch)
+        try await run(args)
+    }
+
+    // MARK: - Remotes & Network
+
+    func remotes() async throws -> [Remote] {
+        let output = try await run("remote", "-v")
+        var byName: [String: (fetch: String?, push: String?)] = [:]
+        for raw in output.split(separator: "\n") {
+            let line = String(raw)
+            // Format: name<TAB>url (fetch|push)
+            let parts = line.split(whereSeparator: { $0 == "\t" || $0 == " " }).map(String.init)
+            guard parts.count >= 3 else { continue }
+            let name = parts[0]
+            let url = parts[1]
+            let kind = parts[2]
+            var entry = byName[name] ?? (nil, nil)
+            if kind.contains("fetch") { entry.fetch = url }
+            if kind.contains("push") { entry.push = url }
+            byName[name] = entry
+        }
+        return byName.map { Remote(name: $0.key, fetchURL: $0.value.fetch, pushURL: $0.value.push) }
+            .sorted { $0.name < $1.name }
+    }
+
+    func fetch(remote: String? = nil, allRemotes: Bool = false, prune: Bool = true) async throws {
+        var args = ["fetch", "--progress"]
+        if prune { args.append("--prune") }
+        if allRemotes {
+            args.append("--all")
+        } else if let remote {
+            args.append(remote)
+        }
+        try await run(args)
+    }
+
+    /// Fast-forward only pull. Fails if not fast-forwardable; caller can show the error.
+    func pull(remote: String = "origin") async throws {
+        try await run("pull", "--ff-only", "--progress", remote)
+    }
+
+    /// Push current branch to `remote`. If `setUpstream` is true, also `-u`.
+    func push(remote: String = "origin", branch: String? = nil, setUpstream: Bool = false) async throws {
+        var args = ["push", "--progress"]
+        if setUpstream { args.append("-u") }
+        args.append(remote)
+        if let branch { args.append(branch) }
+        try await run(args)
     }
 }

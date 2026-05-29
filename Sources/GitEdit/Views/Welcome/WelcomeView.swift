@@ -2,10 +2,11 @@ import SwiftUI
 
 struct WelcomeView: View {
     @EnvironmentObject var store: RepositoryStore
+    @State private var isShowingCloneSheet = false
+    @State private var isShowingInitSheet = false
 
     var body: some View {
         ZStack {
-            // Subtle gradient backdrop
             LinearGradient(
                 colors: [
                     Color.accentColor.opacity(0.06),
@@ -33,11 +34,11 @@ struct WelcomeView: View {
                         .shadow(color: .accentColor.opacity(0.25), radius: 20, y: 6)
 
                     VStack(spacing: DT.Space.xs) {
-                        Text("GitEdit")
+                        Text(verbatim: "GitEdit")
                             .font(.system(size: 36, weight: .bold, design: .rounded))
                             .foregroundStyle(.primary)
 
-                        Text("Git をもっとシンプルに、もっと安心に。")
+                        Text(L("Git をもっとシンプルに、もっと安心に。"))
                             .font(.title3)
                             .foregroundStyle(.secondary)
                     }
@@ -47,8 +48,8 @@ struct WelcomeView: View {
                     ActionCard(
                         icon: "folder.badge.plus",
                         tint: .blue,
-                        title: "ローカルのリポジトリを追加",
-                        subtitle: "Mac 内の既存リポジトリを取り込む",
+                        title: L("ローカルのリポジトリを追加"),
+                        subtitle: L("Mac 内の既存リポジトリを取り込む"),
                         shortcut: "⌘ O"
                     ) {
                         store.promptAddRepository()
@@ -57,30 +58,40 @@ struct WelcomeView: View {
                     ActionCard(
                         icon: "square.and.arrow.down",
                         tint: .green,
-                        title: "クローン",
-                        subtitle: "URL を指定してリポジトリを複製",
-                        shortcut: "⇧ ⌘ O",
-                        comingSoon: true
-                    ) {}
+                        title: L("クローン"),
+                        subtitle: L("URL を指定してリポジトリを複製"),
+                        shortcut: "⇧ ⌘ O"
+                    ) {
+                        isShowingCloneSheet = true
+                    }
 
                     ActionCard(
                         icon: "plus.square.on.square",
                         tint: .orange,
-                        title: "新しいリポジトリを作成",
-                        subtitle: "空のフォルダで git init",
-                        shortcut: "⌘ N",
-                        comingSoon: true
-                    ) {}
+                        title: L("新しいリポジトリを作成"),
+                        subtitle: L("空のフォルダで git init"),
+                        shortcut: "⌘ N"
+                    ) {
+                        isShowingInitSheet = true
+                    }
                 }
                 .frame(maxWidth: 440)
 
                 Spacer()
 
-                Text("Made with ☕️ in Tokyo")
+                Text(L("Made with ☕️ in Tokyo"))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
             .padding(DT.Space.xxl)
+        }
+        .sheet(isPresented: $isShowingCloneSheet) {
+            CloneSheet(isPresented: $isShowingCloneSheet)
+                .environmentObject(store)
+        }
+        .sheet(isPresented: $isShowingInitSheet) {
+            InitSheet(isPresented: $isShowingInitSheet)
+                .environmentObject(store)
         }
     }
 }
@@ -114,7 +125,7 @@ private struct ActionCard: View {
                             .font(.body.weight(.medium))
                             .foregroundStyle(.primary)
                         if comingSoon {
-                            Text("近日")
+                            Text(L("近日"))
                                 .font(.caption2.weight(.semibold))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 1)

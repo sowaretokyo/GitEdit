@@ -1,13 +1,7 @@
 import SwiftUI
 
 struct HistoryView: View {
-    let repository: Repository
-    @StateObject private var viewModel: HistoryViewModel
-
-    init(repository: Repository) {
-        self.repository = repository
-        _viewModel = StateObject(wrappedValue: HistoryViewModel(repository: repository))
-    }
+    @ObservedObject var viewModel: HistoryViewModel
 
     var body: some View {
         HSplitView {
@@ -21,7 +15,7 @@ struct HistoryView: View {
     private var commitList: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("コミット履歴")
+                Text(L("コミット履歴"))
                     .font(.headline)
                 Spacer()
                 if !viewModel.commits.isEmpty {
@@ -51,7 +45,7 @@ struct HistoryView: View {
                     Image(systemName: "tray")
                         .font(.system(size: 32, weight: .light))
                         .foregroundStyle(.tertiary)
-                    Text("コミットがありません")
+                    Text(L("コミットがありません"))
                         .foregroundStyle(.secondary)
                     Spacer()
                 }
@@ -78,7 +72,7 @@ struct HistoryView: View {
                 Image(systemName: "doc.text.magnifyingglass")
                     .font(.system(size: 32, weight: .light))
                     .foregroundStyle(.tertiary)
-                Text("左のリストからコミットを選択")
+                Text(L("左のリストからコミットを選択"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()

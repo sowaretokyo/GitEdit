@@ -11,7 +11,7 @@ struct RepositorySidebar: View {
                         .tag(repo.id)
                 }
             } header: {
-                Text("リポジトリ")
+                Text(L("リポジトリ"))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
@@ -25,7 +25,7 @@ struct RepositorySidebar: View {
                 } label: {
                     Image(systemName: "plus")
                 }
-                .help("リポジトリを追加")
+                .help(L("リポジトリを追加"))
             }
         }
         .overlay {
@@ -34,10 +34,10 @@ struct RepositorySidebar: View {
                     Image(systemName: "tray")
                         .font(.system(size: 28, weight: .light))
                         .foregroundStyle(.tertiary)
-                    Text("リポジトリがありません")
+                    Text(L("リポジトリがありません"))
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                    Text("+ ボタンから追加")
+                    Text(L("+ ボタンから追加"))
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }

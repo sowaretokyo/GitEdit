@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "GitEdit",
+    defaultLocalization: "ja",
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "GitEdit", targets: ["GitEdit"])
@@ -10,7 +11,11 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "GitEdit",
-            path: "Sources/GitEdit"
+            path: "Sources/GitEdit",
+            exclude: ["Localization/README.md"],
+            resources: [
+                .process("Resources")
+            ]
         )
     ]
 )

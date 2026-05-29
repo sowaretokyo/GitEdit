@@ -14,7 +14,7 @@ struct CommitMessageEditor: View {
             HistoryAwareTextEditor(
                 text: $viewModel.commitMessage,
                 history: viewModel.commitHistory,
-                placeholder: "コミットメッセージ（↑↓ で過去のメッセージを呼び出し）"
+                placeholder: L("コミットメッセージ（↑↓ で過去のメッセージを呼び出し）")
             )
             .frame(minHeight: 72, maxHeight: 140)
             .padding(DT.Space.sm)
@@ -39,7 +39,7 @@ struct CommitMessageEditor: View {
                 }
 
                 if !viewModel.commitHistory.isEmpty {
-                    Text("↑↓ で履歴")
+                    Text(L("↑↓ で履歴"))
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
@@ -47,7 +47,7 @@ struct CommitMessageEditor: View {
                 Spacer()
 
                 if viewModel.stagedCount > 0 {
-                    Text("\(viewModel.stagedCount) 件をコミット")
+                    Text(L("%d 件をコミット", viewModel.stagedCount))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -63,7 +63,7 @@ struct CommitMessageEditor: View {
                         } else {
                             Image(systemName: "checkmark.circle.fill")
                         }
-                        Text("コミット")
+                        Text(L("コミット"))
                             .fontWeight(.medium)
                     }
                     .frame(minWidth: 80)

@@ -16,7 +16,7 @@ struct GitEditApp: App {
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("リポジトリを追加…") {
+                Button(L("リポジトリを追加…")) {
                     store.promptAddRepository()
                 }
                 .keyboardShortcut("o", modifiers: .command)

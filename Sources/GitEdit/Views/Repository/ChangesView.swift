@@ -1,13 +1,7 @@
 import SwiftUI
 
 struct ChangesView: View {
-    let repository: Repository
-    @StateObject private var viewModel: ChangesViewModel
-
-    init(repository: Repository) {
-        self.repository = repository
-        _viewModel = StateObject(wrappedValue: ChangesViewModel(repository: repository))
-    }
+    @ObservedObject var viewModel: ChangesViewModel
 
     var body: some View {
         HSplitView {
@@ -25,14 +19,11 @@ struct ChangesView: View {
                     .padding(DT.Space.lg)
             }
         }
-        .task {
-            await viewModel.refreshAll()
-        }
-        .alert("エラー", isPresented: Binding(
+        .alert(L("エラー"), isPresented: Binding(
             get: { viewModel.lastError != nil },
             set: { if !$0 { viewModel.lastError = nil } }
         )) {
-            Button("OK") { viewModel.lastError = nil }
+            Button(L("OK")) { viewModel.lastError = nil }
         } message: {
             Text(viewModel.lastError ?? "")
         }
@@ -49,13 +40,13 @@ struct ChangesView: View {
                 .labelsHidden()
                 .disabled(viewModel.changes.isEmpty)
 
-                Text("変更されたファイル")
+                Text(L("変更されたファイル"))
                     .font(.headline)
 
                 Spacer()
 
                 if !viewModel.changes.isEmpty {
-                    Text("\(viewModel.stagedCount) / \(viewModel.changes.count)")
+                    Text(L("%d / %d", viewModel.stagedCount, viewModel.changes.count))
                         .font(.caption.weight(.medium))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
@@ -103,10 +94,10 @@ struct ChangesView: View {
                         endPoint: .bottom
                     )
                 )
-            Text("変更はありません")
+            Text(L("変更はありません"))
                 .font(.callout.weight(.medium))
                 .foregroundStyle(.secondary)
-            Text("作業ツリーはクリーンです ✨")
+            Text(L("作業ツリーはクリーンです ✨"))
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             Spacer()

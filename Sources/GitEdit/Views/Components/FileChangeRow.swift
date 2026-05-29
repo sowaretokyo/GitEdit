@@ -43,7 +43,7 @@ struct FileChangeRow: View {
             Spacer(minLength: 0)
 
             if change.hasStagedChange && change.hasUnstagedChange {
-                Text("一部のみ ステージ")
+                Text(L("一部のみ ステージ"))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }

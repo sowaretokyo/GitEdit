@@ -17,7 +17,7 @@ struct DiffView: View {
         HStack(spacing: DT.Space.sm) {
             Image(systemName: "doc.text")
                 .foregroundStyle(.secondary)
-            Text(selectedFile ?? "ファイル未選択")
+            Text(selectedFile ?? L("ファイル未選択"))
                 .font(.callout.monospaced())
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -34,8 +34,8 @@ struct DiffView: View {
         if selectedFile == nil {
             placeholder(
                 icon: "doc.text.magnifyingglass",
-                title: "左のリストからファイルを選択",
-                subtitle: "差分がここに表示されます"
+                title: L("左のリストからファイルを選択"),
+                subtitle: L("差分がここに表示されます")
             )
         } else if isLoading {
             ProgressView()
@@ -44,7 +44,7 @@ struct DiffView: View {
         } else if diffText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             placeholder(
                 icon: "equal.circle",
-                title: "差分なし",
+                title: L("差分なし"),
                 subtitle: nil
             )
         } else {

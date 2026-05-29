@@ -72,7 +72,7 @@ final class GitClient: @unchecked Sendable {
         }
     }
 
-    // MARK: - High-level operations
+    // MARK: - Repo
 
     func isInsideRepository() async -> Bool {
         do {
@@ -88,6 +88,8 @@ final class GitClient: @unchecked Sendable {
         return output.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    // MARK: - Status
+
     func status() async throws -> [FileChange] {
         let output = try await run("status", "--porcelain=v1", "-z", "-uall")
         return GitStatusParser.parse(porcelainV1Z: output)
@@ -102,11 +104,72 @@ final class GitClient: @unchecked Sendable {
             .filter { !$0.isEmpty }
     }
 
-    func commit(message: String) async throws {
-        try await run("commit", "-m", message)
+    // MARK: - Staging
+
+    func stage(path: String) async throws {
+        try await run("add", "--", path)
+    }
+
+    func unstage(path: String) async throws {
+        try await run("restore", "--staged", "--", path)
     }
 
     func stageAll() async throws {
         try await run("add", "-A")
+    }
+
+    func unstageAll() async throws {
+        try await run("restore", "--staged", ".")
+    }
+
+    // MARK: - Commit
+
+    func commit(message: String) async throws {
+        try await run("commit", "-m", message)
+    }
+
+    // MARK: - Diff
+
+    /// Combined diff (worktree + index) against HEAD for a single file.
+    func diffAgainstHEAD(path: String) async throws -> String {
+        try await run("diff", "HEAD", "--no-color", "--", path)
+    }
+
+    /// Read file content from the working tree (for untracked files).
+    func readFileFromWorkTree(path: String) -> String? {
+        let url = repositoryURL.appendingPathComponent(path)
+        return try? String(contentsOf: url, encoding: .utf8)
+    }
+
+    // MARK: - History
+
+    func recentCommits(limit: Int = 200) async throws -> [Commit] {
+        let RS = "\u{1E}"
+        let US = "\u{1F}"
+        let output = try await run(
+            "log", "-n", String(limit),
+            "--format=%H\(US)%h\(US)%aI\(US)%an\(US)%ae\(US)%s\(RS)"
+        )
+
+        let formatter = ISO8601DateFormatter()
+        var commits: [Commit] = []
+        for record in output.split(separator: Character(RS), omittingEmptySubsequences: true) {
+            let fields = record
+                .split(separator: Character(US), omittingEmptySubsequences: false)
+                .map(String.init)
+            guard fields.count >= 6 else { continue }
+            let trimmedDate = fields[2].trimmingCharacters(in: .whitespacesAndNewlines)
+            let date = formatter.date(from: trimmedDate) ?? .distantPast
+            commits.append(Commit(
+                id: fields[0].trimmingCharacters(in: .whitespacesAndNewlines),
+                shortSHA: fields[1],
+                summary: fields[5].trimmingCharacters(in: .whitespacesAndNewlines),
+                body: "",
+                author: fields[3],
+                authorEmail: fields[4],
+                date: date
+            ))
+        }
+        return commits
     }
 }

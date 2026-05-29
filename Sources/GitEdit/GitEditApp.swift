@@ -1,14 +1,16 @@
 import SwiftUI
+import AppKit
 
 @main
-struct GitCodeApp: App {
+struct GitEditApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var store = RepositoryStore()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(store)
-                .frame(minWidth: 1000, minHeight: 640)
+                .frame(minWidth: 1100, minHeight: 680)
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: false))
@@ -20,5 +22,16 @@ struct GitCodeApp: App {
                 .keyboardShortcut("o", modifiers: .command)
             }
         }
+    }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
     }
 }

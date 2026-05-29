@@ -2,39 +2,39 @@ import SwiftUI
 
 struct FileChangeRow: View {
     let change: FileChange
+    let isSelected: Bool
+    let onToggle: () -> Void
+
     @State private var isHovering = false
 
     private var statusColor: Color {
-        switch change.status {
-        case .modified: return DT.Status.modified
+        switch change.category {
+        case .modified, .typeChanged: return DT.Status.modified
         case .added: return DT.Status.added
         case .deleted: return DT.Status.deleted
-        case .renamed: return DT.Status.renamed
-        case .copied: return DT.Status.renamed
+        case .renamed, .copied: return DT.Status.renamed
         case .untracked: return DT.Status.untracked
-        case .typeChanged: return DT.Status.typeChanged
+        case .ignored: return Color.secondary
         case .unmerged: return DT.Status.unmerged
-        }
-    }
-
-    private var displayPath: String {
-        switch change.status {
-        case .renamed(let from), .copied(let from):
-            return "\(from) → \(change.path)"
-        default:
-            return change.path
         }
     }
 
     var body: some View {
         HStack(spacing: DT.Space.sm) {
-            Text(change.statusSymbol)
+            Toggle("", isOn: Binding(
+                get: { change.willBeCommitted },
+                set: { _ in onToggle() }
+            ))
+            .toggleStyle(.checkbox)
+            .labelsHidden()
+
+            Text(change.primaryStatusSymbol)
                 .font(.system(size: 10, weight: .heavy, design: .monospaced))
                 .foregroundStyle(.white)
                 .frame(width: 18, height: 18)
                 .background(statusColor, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
 
-            Text(displayPath)
+            Text(change.displayPath)
                 .font(.system(.callout, design: .monospaced))
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -42,8 +42,8 @@ struct FileChangeRow: View {
 
             Spacer(minLength: 0)
 
-            if !change.isStaged && change.status != .untracked {
-                Text("未ステージ")
+            if change.hasStagedChange && change.hasUnstagedChange {
+                Text("一部のみ ステージ")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -52,10 +52,13 @@ struct FileChangeRow: View {
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(.tint.opacity(isHovering ? 0.08 : 0))
+                .fill(isSelected
+                      ? Color.accentColor.opacity(0.18)
+                      : (isHovering ? Color.accentColor.opacity(0.06) : Color.clear))
         )
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: isHovering)
+        .animation(.easeOut(duration: 0.1), value: isHovering)
+        .animation(.easeOut(duration: 0.1), value: isSelected)
     }
 }

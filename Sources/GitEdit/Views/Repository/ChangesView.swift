@@ -12,10 +12,14 @@ struct ChangesView: View {
     var body: some View {
         HSplitView {
             fileList
-                .frame(minWidth: 260, idealWidth: 320)
+                .frame(minWidth: 300, idealWidth: 360)
 
             VStack(spacing: 0) {
-                diffPanel
+                DiffView(
+                    diffText: viewModel.diffText,
+                    isLoading: viewModel.isLoadingDiff,
+                    selectedFile: viewModel.selectedChange?.displayPath
+                )
                 Divider()
                 CommitMessageEditor(viewModel: viewModel)
                     .padding(DT.Space.lg)
@@ -36,16 +40,26 @@ struct ChangesView: View {
 
     private var fileList: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: DT.Space.sm) {
+                Toggle("", isOn: Binding(
+                    get: { viewModel.allStaged },
+                    set: { _ in Task { await viewModel.toggleAll() } }
+                ))
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+                .disabled(viewModel.changes.isEmpty)
+
                 Text("変更されたファイル")
                     .font(.headline)
+
                 Spacer()
+
                 if !viewModel.changes.isEmpty {
-                    Text("\(viewModel.changes.count)")
+                    Text("\(viewModel.stagedCount) / \(viewModel.changes.count)")
                         .font(.caption.weight(.medium))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
-                        .background(.tint.opacity(0.18), in: Capsule())
+                        .background(Color.accentColor.opacity(0.18), in: Capsule())
                         .foregroundStyle(.tint)
                 }
             }
@@ -60,7 +74,14 @@ struct ChangesView: View {
                 ScrollView {
                     LazyVStack(spacing: 1) {
                         ForEach(viewModel.changes) { change in
-                            FileChangeRow(change: change)
+                            FileChangeRow(
+                                change: change,
+                                isSelected: viewModel.selectedPath == change.path,
+                                onToggle: {
+                                    Task { await viewModel.toggleInclusion(of: change) }
+                                }
+                            )
+                            .onTapGesture { viewModel.select(change) }
                         }
                     }
                     .padding(.horizontal, DT.Space.xs)
@@ -91,23 +112,5 @@ struct ChangesView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private var diffPanel: some View {
-        ZStack {
-            Color(nsColor: .textBackgroundColor)
-            VStack(spacing: DT.Space.sm) {
-                Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 32, weight: .light))
-                    .foregroundStyle(.tertiary)
-                Text("差分ビューア")
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(.secondary)
-                Text("Phase 2 で実装予定")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .frame(maxHeight: .infinity)
     }
 }

@@ -17,7 +17,7 @@ struct RepositorySidebar: View {
             }
         }
         .listStyle(.sidebar)
-        .navigationTitle("GitCode")
+        .navigationTitle("GitEdit")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {

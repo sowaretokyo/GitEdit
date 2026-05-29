@@ -33,7 +33,7 @@ struct WelcomeView: View {
                         .shadow(color: .accentColor.opacity(0.25), radius: 20, y: 6)
 
                     VStack(spacing: DT.Space.xs) {
-                        Text("GitCode")
+                        Text("GitEdit")
                             .font(.system(size: 36, weight: .bold, design: .rounded))
                             .foregroundStyle(.primary)
 

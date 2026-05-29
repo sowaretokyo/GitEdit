@@ -2,15 +2,15 @@
 import PackageDescription
 
 let package = Package(
-    name: "GitCode",
+    name: "GitEdit",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "GitCode", targets: ["GitCode"])
+        .executable(name: "GitEdit", targets: ["GitEdit"])
     ],
     targets: [
         .executableTarget(
-            name: "GitCode",
-            path: "Sources/GitCode"
+            name: "GitEdit",
+            path: "Sources/GitEdit"
         )
     ]
 )

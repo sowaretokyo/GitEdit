@@ -5,7 +5,7 @@ struct CommitMessageEditor: View {
 
     private var canCommit: Bool {
         !viewModel.commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !viewModel.changes.isEmpty
+            && viewModel.stagedCount > 0
             && !viewModel.isCommitting
     }
 
@@ -45,6 +45,12 @@ struct CommitMessageEditor: View {
                 }
 
                 Spacer()
+
+                if viewModel.stagedCount > 0 {
+                    Text("\(viewModel.stagedCount) 件をコミット")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Button {
                     Task { await viewModel.commit() }

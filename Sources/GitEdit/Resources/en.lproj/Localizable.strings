@@ -117,8 +117,8 @@
 "%d 件の変更" = "%d changes";
 "ローカル変更はありません" = "No local changes";
 "このリポジトリにはまだコミット待ちの変更はありません。" = "There are no uncommitted changes in this repository.";
-"origin に %d 件のコミットを反映できます" = "You have %d local commits waiting to be pushed";
-"ツールバーの「反映」ボタンを押してください。" = "Press \"Push\" in the toolbar.";
+"origin に %d 件のコミットをプッシュできます" = "You have %d local commits waiting to be pushed";
+"ツールバーの「プッシュ」ボタンを押してください。" = "Press \"Push\" in the toolbar.";
 
 /* ===== Branch picker ===== */
 "ブランチ未選択" = "No branch";
@@ -134,19 +134,17 @@
 "ブランチを削除しました: %@" = "Deleted %@";
 
 /* ===== Network ops ===== */
-"取得" = "Fetch";
-"取り込み" = "Pull";
-"反映" = "Push";
-"公開" = "Publish";
-"取得中…" = "Fetching…";
-"取り込み中…" = "Pulling…";
-"反映中…" = "Pushing…";
-"取得が完了しました" = "Fetch complete";
-"取り込みが完了しました" = "Pull complete";
-"反映が完了しました" = "Push complete";
-"ブランチを公開しました" = "Branch published";
-"%d 件取り込みました" = "Pulled %d";
-"%d 件反映しました" = "Pushed %d";
+"フェッチ" = "Fetch";
+"プル" = "Pull";
+"プッシュ" = "Push";
+"プッシュ（初回）" = "Push (initial)";
+"フェッチ中…" = "Fetching…";
+"プル中…" = "Pulling…";
+"プッシュ中…" = "Pushing…";
+"フェッチが完了しました" = "Fetch complete";
+"プルが完了しました" = "Pull complete";
+"プッシュが完了しました" = "Push complete";
+"ブランチをプッシュしました" = "Branch pushed";
 "未公開のブランチ" = "Unpublished branch";
 "このブランチはリモートに公開されていません" = "This branch hasn't been published yet";
 "コマンドの実行に失敗しました" = "Command failed";
@@ -198,9 +196,9 @@
 "初期化に失敗: %@" = "Init failed: %@";
 "切替に失敗: %@" = "Switch failed: %@";
 "作成に失敗: %@" = "Create failed: %@";
-"取得に失敗: %@" = "Fetch failed: %@";
-"取り込みに失敗: %@" = "Pull failed: %@";
-"反映に失敗: %@" = "Push failed: %@";
+"フェッチに失敗: %@" = "Fetch failed: %@";
+"プルに失敗: %@" = "Pull failed: %@";
+"プッシュに失敗: %@" = "Push failed: %@";
 "マージに失敗: %@" = "Merge failed: %@";
 "削除に失敗: %@" = "Delete failed: %@";
 

@@ -37,7 +37,7 @@ struct DiffView: View {
     @ViewBuilder
     private var content: some View {
         if selectedFile == nil {
-            placeholder(
+            EmptyStateView(
                 icon: "doc.text.magnifyingglass",
                 title: L("左のリストからファイルを選択"),
                 subtitle: L("差分がここに表示されます")
@@ -47,11 +47,7 @@ struct DiffView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color(nsColor: .textBackgroundColor))
         } else if diffText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            placeholder(
-                icon: "equal.circle",
-                title: L("差分なし"),
-                subtitle: nil
-            )
+            EmptyStateView(icon: "equal.circle", title: L("差分なし"))
         } else {
             ScrollView(.vertical) {
                 LazyVStack(alignment: .leading, spacing: 0) {
@@ -64,26 +60,6 @@ struct DiffView: View {
             }
             .background(Color(nsColor: .textBackgroundColor))
         }
-    }
-
-    private func placeholder(icon: String, title: String, subtitle: String?) -> some View {
-        VStack(spacing: DT.Space.sm) {
-            Spacer()
-            Image(systemName: icon)
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(title)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            if let subtitle {
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .textBackgroundColor))
     }
 }
 

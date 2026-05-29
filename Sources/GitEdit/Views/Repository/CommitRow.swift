@@ -10,33 +10,16 @@ struct CommitRow: View {
         return f
     }()
 
-    private var initials: String {
-        let parts = commit.author.split(separator: " ")
-        if parts.count >= 2 {
-            return String(parts[0].prefix(1) + parts[1].prefix(1)).uppercased()
-        }
-        return String(commit.author.prefix(1)).uppercased()
-    }
-
-    private var avatarHue: Double {
-        let hash = abs(commit.authorEmail.hashValue)
-        return Double(hash % 360) / 360.0
-    }
-
     private var avatarURL: URL? {
         GitHubAvatar.url(for: commit.authorEmail, size: 80)
-    }
-
-    private var tintColor: Color {
-        Color(hue: avatarHue, saturation: 0.55, brightness: 0.7)
     }
 
     var body: some View {
         HStack(spacing: DT.Space.md) {
             AvatarImageView(
                 url: avatarURL,
-                initials: initials,
-                tintColor: tintColor,
+                initials: AvatarHash.initials(for: commit.author),
+                tintColor: AvatarHash.tintColor(for: commit.authorEmail),
                 size: 30
             )
 
@@ -62,6 +45,6 @@ struct CommitRow: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, DT.RowDensity.tight)
     }
 }

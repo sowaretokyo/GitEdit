@@ -104,7 +104,8 @@
 "コミット履歴" = "Commit History";
 "コミットがありません" = "No Commits";
 "左のリストからコミットを選択" = "Pick a commit from the list";
-"変更ファイルの差分は Phase 3 で対応予定" = "Changed-file diffs coming in a later phase";
+"変更ファイル" = "Changed Files";
+"ファイル変更なし" = "No file changes";
 
 /* ===== Branch picker ===== */
 "ブランチ未選択" = "No branch";

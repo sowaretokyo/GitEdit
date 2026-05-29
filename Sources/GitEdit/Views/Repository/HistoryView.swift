@@ -65,7 +65,7 @@ struct HistoryView: View {
     @ViewBuilder
     private var commitDetail: some View {
         if let commit = viewModel.selectedCommit {
-            CommitDetailView(commit: commit)
+            CommitDetailView(commit: commit, viewModel: viewModel)
         } else {
             VStack(spacing: DT.Space.sm) {
                 Spacer()

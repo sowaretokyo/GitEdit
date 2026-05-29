@@ -181,6 +181,66 @@ final class GitClient: @unchecked Sendable {
         return try? String(contentsOf: url, encoding: .utf8)
     }
 
+    // MARK: - Commit details
+
+    /// Returns the list of files changed in a single commit.
+    /// Uses `git show --format= --name-status -z` which handles root commits and
+    /// merges via the default first-parent comparison.
+    func filesInCommit(sha: String) async throws -> [FileChange] {
+        let output = try await run("show", "--format=", "--name-status", "-z", "--no-color", sha)
+        return Self.parseShowNameStatusZ(output)
+    }
+
+    /// Returns the per-file diff for a commit, with the empty commit-message
+    /// header stripped so the DiffView gets just the patch portion.
+    func diffForFile(in sha: String, path: String) async throws -> String {
+        let output = try await run("show", "--format=", "--no-color", sha, "--", path)
+        return String(output.drop(while: { $0 == "\n" || $0 == "\r" }))
+    }
+
+    private static func parseShowNameStatusZ(_ output: String) -> [FileChange] {
+        // `--format=` leaves leading newlines; trim them before NUL-splitting.
+        let trimmed = output.drop(while: { $0 == "\n" || $0 == "\r" })
+        let entries = trimmed
+            .split(separator: "\u{0}", omittingEmptySubsequences: true)
+            .map(String.init)
+
+        var result: [FileChange] = []
+        var i = 0
+        while i < entries.count {
+            let statusToken = entries[i]
+            guard let firstChar = statusToken.first else {
+                i += 1
+                continue
+            }
+
+            if firstChar == "R" || firstChar == "C" {
+                // Rename/Copy: status, orig, new
+                guard i + 2 < entries.count else { break }
+                let orig = entries[i + 1]
+                let new = entries[i + 2]
+                result.append(FileChange(
+                    path: new,
+                    indexStatus: firstChar,
+                    workingStatus: " ",
+                    renameFrom: orig
+                ))
+                i += 3
+            } else {
+                guard i + 1 < entries.count else { break }
+                let path = entries[i + 1]
+                result.append(FileChange(
+                    path: path,
+                    indexStatus: firstChar,
+                    workingStatus: " ",
+                    renameFrom: nil
+                ))
+                i += 2
+            }
+        }
+        return result
+    }
+
     func writeFile(path: String, content: String) throws {
         let url = repositoryURL.appendingPathComponent(path)
         let dir = url.deletingLastPathComponent()

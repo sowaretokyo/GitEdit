@@ -145,8 +145,8 @@
 "プルが完了しました" = "Pull complete";
 "プッシュが完了しました" = "Push complete";
 "ブランチをプッシュしました" = "Branch pushed";
-"未公開のブランチ" = "Unpublished branch";
-"このブランチはリモートに公開されていません" = "This branch hasn't been published yet";
+"未プッシュのブランチ" = "Unpushed branch";
+"このブランチはまだプッシュされていません" = "This branch hasn't been pushed yet";
 "コマンドの実行に失敗しました" = "Command failed";
 
 /* ===== Create branch ===== */

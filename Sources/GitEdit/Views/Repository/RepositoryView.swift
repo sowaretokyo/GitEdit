@@ -152,15 +152,22 @@ struct RepositoryView: View {
 
     // MARK: - File-picker selection routing
 
+    /// `⌘P` selection: always display the file in the read-only
+    /// `FileViewerPane`, matching the Search / Explorer flow.
+    /// Routes through the Explorer tab so the right pane already has the
+    /// viewer wired up.
     private func openFileByPath(_ path: String) {
-        if let change = changesVM.changes.first(where: { $0.path == path }) {
-            selectedTab = .changes
-            Task { await changesVM.select(change) }
-        } else {
-            // File not in current changes — switch to changes tab; full
-            // committed-file viewer is a separate follow-up.
-            selectedTab = .changes
-        }
+        let fileName = (path as NSString).lastPathComponent
+        let absoluteURL = repository.url.appendingPathComponent(path)
+        let node = FileNode(
+            path: path,
+            name: fileName,
+            url: absoluteURL,
+            isDirectory: false,
+            children: nil
+        )
+        viewedExplorerNode = node
+        selectedTab = .explorer
     }
 
     private func openGrepResult(_ match: GrepResult) {
@@ -187,7 +194,10 @@ struct RepositoryView: View {
         case .history:
             HistorySidebar(viewModel: historyVM)
         case .search:
-            SearchSidebar(viewModel: searchVM) { match in
+            SearchSidebar(
+                viewModel: searchVM,
+                currentResultId: viewedGrepResult?.id
+            ) { match in
                 openGrepResult(match)
             }
         case .explorer:

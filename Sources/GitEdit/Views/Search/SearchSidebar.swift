@@ -4,6 +4,9 @@ import SwiftUI
 /// Uses `git grep` and groups results by file path.
 struct SearchSidebar: View {
     @ObservedObject var viewModel: SearchViewModel
+    /// `id` of the result currently shown in the right pane (`GrepResult.id`).
+    /// Used to render a persistent highlight on the active row.
+    let currentResultId: String?
     let onSelect: (GrepResult) -> Void
 
     @FocusState private var queryFocused: Bool
@@ -75,11 +78,19 @@ struct SearchSidebar: View {
                     ForEach(viewModel.groupedResults, id: \.path) { group in
                         Section {
                             ForEach(group.matches) { match in
-                                MatchRow(match: match, query: viewModel.query)
-                                    .onTapGesture { onSelect(match) }
+                                MatchRow(
+                                    match: match,
+                                    query: viewModel.query,
+                                    isCurrent: match.id == currentResultId
+                                )
+                                .onTapGesture { onSelect(match) }
                             }
                         } header: {
-                            FileGroupHeader(path: group.path, count: group.matches.count)
+                            FileGroupHeader(
+                                path: group.path,
+                                count: group.matches.count,
+                                hasCurrent: group.matches.contains { $0.id == currentResultId }
+                            )
                         }
                     }
                 }
@@ -125,6 +136,8 @@ struct SearchSidebar: View {
 private struct FileGroupHeader: View {
     let path: String
     let count: Int
+    /// True when the currently-viewed grep result belongs to this file.
+    let hasCurrent: Bool
 
     var body: some View {
         HStack(spacing: DT.Space.xs) {
@@ -135,7 +148,8 @@ private struct FileGroupHeader: View {
                 .font(.callout.monospaced())
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .foregroundStyle(.primary)
+                .foregroundStyle(hasCurrent ? .primary : .primary)
+                .fontWeight(hasCurrent ? .semibold : .regular)
             Text("\(count)")
                 .font(.caption.weight(.medium))
                 .padding(.horizontal, 6)
@@ -153,14 +167,24 @@ private struct FileGroupHeader: View {
 private struct MatchRow: View {
     let match: GrepResult
     let query: String
+    /// True when this row is the result shown in the right pane.
+    let isCurrent: Bool
 
     @State private var isHovering = false
+
+    private var backgroundFill: Color {
+        if isCurrent { return Color.accentColor.opacity(0.22) }
+        if isHovering { return Color.accentColor.opacity(0.1) }
+        return .clear
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: DT.Space.sm) {
             Text("\(match.lineNumber)")
                 .font(.callout.monospaced())
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(isCurrent
+                                 ? Color.accentColor
+                                 : Color(nsColor: .tertiaryLabelColor))
                 .frame(width: 40, alignment: .trailing)
                 .padding(.top, 1)
             highlightedSnippet
@@ -171,11 +195,20 @@ private struct MatchRow: View {
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(isHovering ? Color.accentColor.opacity(0.1) : Color.clear)
+                .fill(backgroundFill)
         )
+        .overlay(alignment: .leading) {
+            if isCurrent {
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(width: 2.5)
+                    .padding(.vertical, 2)
+            }
+        }
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
         .animation(.easeOut(duration: 0.1), value: isHovering)
+        .animation(.easeOut(duration: 0.15), value: isCurrent)
     }
 
     private var highlightedSnippet: Text {

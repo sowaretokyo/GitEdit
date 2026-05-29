@@ -6,4 +6,6 @@ DerivedData/
 *.xcworkspace/xcuserdata/
 *.xcuserstate
 build/
+*.dmg
+*.iconset
 Package.resolved

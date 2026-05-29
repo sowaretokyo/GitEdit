@@ -88,6 +88,9 @@
 "%d / %d" = "%d / %d";
 "%d 件をコミット" = "%d to commit";
 "Description（任意）" = "Description (optional)";
+"Summary（必須）" = "Summary (required)";
+"Description" = "Description";
+"%d 件を %@ にコミット" = "Commit %d files to %@";
 
 /* ===== Editor ===== */
 "編集" = "Edit";

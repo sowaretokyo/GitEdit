@@ -20,6 +20,27 @@
 "ダーク" = "Dark";
 "ウィンドウとサイドバーの配色を切り替えます。" = "Toggle the window and sidebar color scheme.";
 
+/* ===== Accounts ===== */
+"アカウント" = "Accounts";
+"GitHub アカウント" = "GitHub Account";
+"プルリクエストやコミットの作者解決などに利用します。トークンは macOS の Keychain に安全に保存されます。" = "Used for pull requests and commit author resolution. The token is stored securely in the macOS Keychain.";
+"GitHub にサインイン…" = "Sign in to GitHub…";
+"GitHub にサインイン" = "Sign in to GitHub";
+"Personal Access Token を使って認証します" = "Authenticate with a Personal Access Token";
+"Personal Access Token (Classic) を貼り付けてください。" = "Paste a Personal Access Token (Classic).";
+"トークンの作成" = "Create a Token";
+"GitHub のトークン発行画面で `repo` と `user:email` の権限を付与したトークンを発行してください。" = "On GitHub's token page, create a token with the `repo` and `user:email` scopes.";
+"GitHub でトークンを発行…" = "Create Token on GitHub…";
+"トークン" = "Token";
+"サインイン" = "Sign In";
+"サインアウト" = "Sign Out";
+"認証中…" = "Authenticating…";
+"認証に失敗: %@" = "Sign-in failed: %@";
+"不正なレスポンス" = "Invalid response";
+"レスポンスの解析に失敗: %@" = "Failed to decode response: %@";
+"トークンが無効です。再発行してください。" = "Token is invalid. Please reissue it.";
+"このトークンには必要な権限がありません。" = "This token doesn't have the required scopes.";
+
 /* ===== Welcome ===== */
 "Git をもっとシンプルに、もっと安心に。" = "Git, simpler and safer.";
 "ローカルのリポジトリを追加" = "Add a Local Repository";

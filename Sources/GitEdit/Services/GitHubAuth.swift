@@ -87,10 +87,10 @@ final class GitHubAuth: @unchecked Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-
-        let scopeString = scopes.joined(separator: " ")
-        let body = "client_id=\(clientID.urlEncoded)&scope=\(scopeString.urlEncoded)"
-        request.httpBody = body.data(using: .utf8)
+        request.httpBody = Self.formURLEncoded([
+            "client_id": clientID,
+            "scope": scopes.joined(separator: " ")
+        ])
 
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
@@ -118,12 +118,11 @@ final class GitHubAuth: @unchecked Sendable {
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-
-            let body =
-                "client_id=\(clientID.urlEncoded)" +
-                "&device_code=\(deviceCode.urlEncoded)" +
-                "&grant_type=urn:ietf:params:oauth:grant-type:device_code"
-            request.httpBody = body.data(using: .utf8)
+            request.httpBody = Self.formURLEncoded([
+                "client_id": clientID,
+                "device_code": deviceCode,
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code"
+            ])
 
             do {
                 let (data, _) = try await session.data(for: request)
@@ -160,10 +159,15 @@ final class GitHubAuth: @unchecked Sendable {
 
         throw AuthError.expiredCode
     }
-}
 
-private extension String {
-    var urlEncoded: String {
-        addingPercentEncoding(withAllowedCharacters: .urlPasswordAllowed) ?? self
+    /// `application/x-www-form-urlencoded` body builder. Uses
+    /// `URLComponents.percentEncodedQuery` so each value is escaped per
+    /// RFC 3986 — safer than rolling our own allowed-character set.
+    /// `KeyValuePairs` preserves caller order, which keeps the on-the-wire
+    /// body deterministic (useful for debugging and snapshot testing).
+    private static func formURLEncoded(_ params: KeyValuePairs<String, String>) -> Data? {
+        var components = URLComponents()
+        components.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
+        return components.percentEncodedQuery?.data(using: .utf8)
     }
 }

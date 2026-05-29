@@ -2,9 +2,7 @@ import SwiftUI
 
 /// The main view shown when a repository is selected.
 /// Mirrors GitHub Desktop's layout:
-///   • top toolbar with Current Repository / Branch / Network ops
-///   • sidebar with Changes / History tab control
-///   • detail pane that swaps based on the selected tab
+
 struct RepositoryView: View {
     let repository: Repository
 
@@ -119,7 +117,7 @@ struct RepositoryView: View {
         } message: { _ in
             Text(L("先に変更をコミットするか退避してから切り替えてください。"))
         }
-        .overlay(alignment: .top) {
+        .overlay(alignment: .bottomTrailing) {
             OperationFeedbackBanner(repoVM: repoVM)
         }
         .sheet(isPresented: $isShowingFilePicker) {
@@ -333,8 +331,10 @@ struct OperationFeedbackBanner: View {
                 )
                 .shadow(color: .black.opacity(0.12), radius: 14, y: 4)
         )
-        .frame(maxWidth: 520)
-        .padding(.top, DT.Space.md)
+        .frame(maxWidth: 420)
+        .padding(.trailing, DT.Space.md)
+        .padding(.bottom, DT.Space.md)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
         .task {
             try? await Task.sleep(nanoseconds: 4_000_000_000)
             await MainActor.run { repoVM.dismissFeedback() }

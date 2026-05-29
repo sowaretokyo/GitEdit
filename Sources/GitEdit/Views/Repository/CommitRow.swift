@@ -5,7 +5,7 @@ struct CommitRow: View {
 
     private static let relativeFormatter: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
-        f.locale = Locale(identifier: "ja_JP")
+        f.locale = Locale.current
         f.unitsStyle = .abbreviated
         return f
     }()
@@ -19,21 +19,26 @@ struct CommitRow: View {
     }
 
     private var avatarHue: Double {
-        // Deterministic tint per author
         let hash = abs(commit.authorEmail.hashValue)
         return Double(hash % 360) / 360.0
     }
 
+    private var avatarURL: URL? {
+        GitHubAvatar.url(for: commit.authorEmail, size: 80)
+    }
+
+    private var tintColor: Color {
+        Color(hue: avatarHue, saturation: 0.55, brightness: 0.7)
+    }
+
     var body: some View {
         HStack(spacing: DT.Space.md) {
-            ZStack {
-                Circle()
-                    .fill(Color(hue: avatarHue, saturation: 0.45, brightness: 0.92).opacity(0.35))
-                    .frame(width: 30, height: 30)
-                Text(initials)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color(hue: avatarHue, saturation: 0.7, brightness: 0.55))
-            }
+            AvatarImageView(
+                url: avatarURL,
+                initials: initials,
+                tintColor: tintColor,
+                size: 30
+            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(commit.summary)

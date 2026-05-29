@@ -13,6 +13,12 @@
 "システムに従う" = "Follow System";
 "選択した言語は即座に反映されます。" = "Changes apply immediately.";
 "バージョン %@" = "Version %@";
+"外観" = "Appearance";
+"テーマ" = "Theme";
+"システムに合わせる" = "Match System";
+"ライト" = "Light";
+"ダーク" = "Dark";
+"ウィンドウとサイドバーの配色を切り替えます。" = "Toggle the window and sidebar color scheme.";
 
 /* ===== Welcome ===== */
 "Git をもっとシンプルに、もっと安心に。" = "Git, simpler and safer.";

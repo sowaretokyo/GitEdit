@@ -2,9 +2,20 @@ import SwiftUI
 
 struct GeneralSettingsView: View {
     @AppStorage(AppLanguage.storageKey) private var appLanguage: String = AppLanguage.system.rawValue
+    @AppStorage(AppAppearance.storageKey) private var appAppearance: String = AppAppearance.system.rawValue
 
     var body: some View {
         Form {
+            Section {
+                appearancePicker
+            } header: {
+                Text(L("外観"))
+            } footer: {
+                Text(L("ウィンドウとサイドバーの配色を切り替えます。"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section {
                 Picker(selection: $appLanguage) {
                     ForEach(AppLanguage.allCases) { lang in
@@ -24,5 +35,22 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    private var appearancePicker: some View {
+        HStack(spacing: DT.Space.md) {
+            Text(L("テーマ"))
+            Spacer()
+            Picker("", selection: $appAppearance) {
+                ForEach(AppAppearance.allCases) { appearance in
+                    Label(appearance.displayName, systemImage: appearance.iconSystemName)
+                        .labelStyle(.titleAndIcon)
+                        .tag(appearance.rawValue)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 360)
+        }
     }
 }

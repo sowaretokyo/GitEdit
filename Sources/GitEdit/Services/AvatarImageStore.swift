@@ -11,6 +11,9 @@ final class AvatarImageStore: ObservableObject {
     private var loadingTasks: [URL: Task<NSImage?, Never>] = [:]
     private let urlSession: URLSession
 
+    /// Set to true to log avatar fetch failures to stderr.
+    static var debugLogging = true
+
     private init() {
         cache.countLimit = 500
 
@@ -27,6 +30,10 @@ final class AvatarImageStore: ObservableObject {
         )
         config.requestCachePolicy = .returnCacheDataElseLoad
         config.timeoutIntervalForRequest = 15
+        config.httpAdditionalHeaders = [
+            "User-Agent": "GitEdit/0.5 (macOS; Swift)",
+            "Accept": "image/*"
+        ]
         urlSession = URLSession(configuration: config)
     }
 
@@ -44,16 +51,26 @@ final class AvatarImageStore: ObservableObject {
                 let (data, response) = try await urlSession.data(from: url)
                 if let http = response as? HTTPURLResponse,
                    !(200...299).contains(http.statusCode) {
+                    Self.log("HTTP \(http.statusCode) for \(url.absoluteString)")
                     return nil
                 }
-                guard let image = NSImage(data: data) else { return nil }
+                guard let image = NSImage(data: data) else {
+                    Self.log("decode failed (\(data.count) bytes) for \(url.absoluteString)")
+                    return nil
+                }
                 cache.setObject(image, forKey: url as NSURL)
                 return image
             } catch {
+                Self.log("fetch error: \(error.localizedDescription) for \(url.absoluteString)")
                 return nil
             }
         }
         loadingTasks[url] = task
         return await task.value
+    }
+
+    private static func log(_ message: String) {
+        guard debugLogging else { return }
+        FileHandle.standardError.write(Data("[Avatar] \(message)\n".utf8))
     }
 }

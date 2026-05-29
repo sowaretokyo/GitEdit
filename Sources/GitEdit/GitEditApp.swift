@@ -43,6 +43,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        // SPM 実行形式は .app バンドルを生成しないため、Dock/ウインドウ用の
+        // アイコンを起動時に NSImage から設定する。
+        if let url = Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            NSApp.applicationIconImage = image
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

@@ -23,8 +23,6 @@ final class ChangesViewModel: ObservableObject {
     @Published var isLoadingDiff: Bool = false
 
     // MARK: - Editor view
-    // Default is `.diff` — matches GitHub Desktop, and avoids the current
-    // NSTextView rendering bug in `.edit` mode (TODO: fix CodeEditor).
     @Published var editorViewMode: DiffEditorMode = .diff
     @Published var editorFileContent: String = ""
     @Published var hasEditorUnsavedChanges: Bool = false

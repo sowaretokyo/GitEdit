@@ -32,13 +32,20 @@ final class LineNumberRulerView: NSRulerView {
 
     override var isFlipped: Bool { true }
 
+    // Background + separator drawing. Use `bounds` (clipped to ruler) and
+    // intersect with `dirtyRect` so we never paint outside the ruler's area
+    // — the earlier `dirtyRect.fill()` call would, in some layout passes,
+    // be handed a rect that extended into the textView's region and blank
+    // out its glyphs.
     override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        NSColor.controlBackgroundColor.withAlphaComponent(0.4).setFill()
-        dirtyRect.fill()
-
+        let paint = bounds.intersection(dirtyRect)
+        if !paint.isEmpty {
+            NSColor.controlBackgroundColor.withAlphaComponent(0.4).setFill()
+            paint.fill()
+        }
         NSColor.separatorColor.withAlphaComponent(0.6).setFill()
         NSRect(x: bounds.maxX - 0.5, y: 0, width: 0.5, height: bounds.height).fill()
+        drawHashMarksAndLabels(in: bounds)
     }
 
     override func drawHashMarksAndLabels(in rect: NSRect) {

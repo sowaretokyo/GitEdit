@@ -37,9 +37,17 @@ final class RepositoryViewModel: ObservableObject {
 
     let git: GitClient
 
+    // MARK: - File-system watcher (real-time auto-refresh)
+    private var fsWatcher: FileSystemWatcher?
+    private var debounceTask: Task<Void, Never>?
+
     init(repository: Repository) {
         self.repository = repository
         self.git = GitClient(repository: repository.url)
+    }
+
+    deinit {
+        // Tasks are released; FileSystemWatcher cleans itself up via deinit.
     }
 
     var hasRemotes: Bool { !remotes.isEmpty }
@@ -56,6 +64,43 @@ final class RepositoryViewModel: ObservableObject {
 
     func bootstrap() async {
         await refresh()
+        startWatching()
+    }
+
+    // MARK: - File-system watching
+
+    private func startWatching() {
+        guard fsWatcher == nil else { return }
+        let repoPath = repository.url.path
+        fsWatcher = FileSystemWatcher(paths: [repoPath], latency: 0.25) { [weak self] paths in
+            Task { @MainActor [weak self] in
+                self?.scheduleAutoRefresh(touchedPaths: paths)
+            }
+        }
+    }
+
+    private func scheduleAutoRefresh(touchedPaths: Set<String>) {
+        // Skip noise from transient git lock files (every git command bounces these).
+        let names = touchedPaths.map { ($0 as NSString).lastPathComponent }
+        let onlyTransient = !names.isEmpty && names.allSatisfy {
+            $0 == "index.lock"
+            || $0 == "HEAD.lock"
+            || $0 == "COMMIT_EDITMSG"
+            || $0 == "MERGE_MSG"
+            || $0 == "ORIG_HEAD"
+            || $0.hasSuffix(".swp")
+            || $0.hasSuffix("~")
+        }
+        if onlyTransient { return }
+
+        debounceTask?.cancel()
+        debounceTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled, let self else { return }
+            await self.refreshBranchInfo()
+            await self.refreshDirty()
+            self.dataVersion &+= 1
+        }
     }
 
     func refresh() async {

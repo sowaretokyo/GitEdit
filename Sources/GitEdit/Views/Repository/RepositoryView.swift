@@ -11,17 +11,34 @@ struct RepositoryView: View {
     @StateObject private var repoVM: RepositoryViewModel
     @StateObject private var changesVM: ChangesViewModel
     @StateObject private var historyVM: HistoryViewModel
+    @StateObject private var searchVM: SearchViewModel
+    @StateObject private var explorerVM: ExplorerViewModel
 
     @State private var selectedTab: Tab = .changes
+    @State private var isShowingFilePicker: Bool = false
+    @State private var viewedGrepResult: GrepResult?
+    @State private var viewedExplorerNode: FileNode?
 
     enum Tab: String, CaseIterable, Identifiable {
         case changes
         case history
+        case search
+        case explorer
         var id: String { rawValue }
         var title: String {
             switch self {
             case .changes: return L("変更")
             case .history: return L("履歴")
+            case .search: return L("検索")
+            case .explorer: return L("エクスプローラ")
+            }
+        }
+        var iconSystemName: String {
+            switch self {
+            case .changes: return "pencil"
+            case .history: return "clock"
+            case .search: return "magnifyingglass"
+            case .explorer: return "folder"
             }
         }
     }
@@ -31,6 +48,8 @@ struct RepositoryView: View {
         _repoVM = StateObject(wrappedValue: RepositoryViewModel(repository: repository))
         _changesVM = StateObject(wrappedValue: ChangesViewModel(repository: repository))
         _historyVM = StateObject(wrappedValue: HistoryViewModel(repository: repository))
+        _searchVM = StateObject(wrappedValue: SearchViewModel(repository: repository.url))
+        _explorerVM = StateObject(wrappedValue: ExplorerViewModel(repository: repository.url))
     }
 
     var body: some View {
@@ -54,6 +73,16 @@ struct RepositoryView: View {
         .onChange(of: repoVM.dataVersion) { _, _ in
             Task {
                 await changesVM.refreshAll()
+                if selectedTab == .history {
+                    await historyVM.load()
+                }
+            }
+        }
+        // After a commit, refresh the repo-level branch info (ahead / behind /
+        // upstream) so the Push toolbar button lights up immediately, GHD-style.
+        .onChange(of: changesVM.commitVersion) { _, _ in
+            Task {
+                await repoVM.refreshBranchInfo()
                 if selectedTab == .history {
                     await historyVM.load()
                 }
@@ -93,6 +122,51 @@ struct RepositoryView: View {
         .overlay(alignment: .top) {
             OperationFeedbackBanner(repoVM: repoVM)
         }
+        .sheet(isPresented: $isShowingFilePicker) {
+            FilePickerSheet(
+                repository: repository.url,
+                isPresented: $isShowingFilePicker
+            ) { path in
+                openFileByPath(path)
+            }
+        }
+        // Hidden ⌘P shortcut to summon the file picker.
+        .background(
+            Button(action: { isShowingFilePicker = true }) {
+                EmptyView()
+            }
+            .keyboardShortcut("p", modifiers: .command)
+            .opacity(0)
+            .accessibilityHidden(true)
+        )
+        // Hidden ⇧⌘F shortcut to jump to the search tab.
+        .background(
+            Button(action: { selectedTab = .search }) {
+                EmptyView()
+            }
+            .keyboardShortcut("f", modifiers: [.command, .shift])
+            .opacity(0)
+            .accessibilityHidden(true)
+        )
+    }
+
+    // MARK: - File-picker selection routing
+
+    private func openFileByPath(_ path: String) {
+        if let change = changesVM.changes.first(where: { $0.path == path }) {
+            selectedTab = .changes
+            Task { await changesVM.select(change) }
+        } else {
+            // File not in current changes — switch to changes tab; full
+            // committed-file viewer is a separate follow-up.
+            selectedTab = .changes
+        }
+    }
+
+    private func openGrepResult(_ match: GrepResult) {
+        // Stay on the search tab and show the file in the right pane,
+        // scrolled / highlighted to the matched line.
+        viewedGrepResult = match
     }
 
     // MARK: - Sidebar
@@ -112,6 +186,14 @@ struct RepositoryView: View {
             ChangesSidebar(viewModel: changesVM)
         case .history:
             HistorySidebar(viewModel: historyVM)
+        case .search:
+            SearchSidebar(viewModel: searchVM) { match in
+                openGrepResult(match)
+            }
+        case .explorer:
+            ExplorerSidebar(viewModel: explorerVM) { node in
+                viewedExplorerNode = node
+            }
         }
     }
 
@@ -128,7 +210,57 @@ struct RepositoryView: View {
             } else {
                 pickCommitPrompt
             }
+        case .search:
+            if let result = viewedGrepResult {
+                FileViewerPane(
+                    repositoryURL: repository.url,
+                    path: result.path,
+                    highlightLine: result.lineNumber
+                )
+            } else {
+                searchPrompt
+            }
+        case .explorer:
+            if let node = viewedExplorerNode, !node.isDirectory {
+                FileViewerPane(
+                    repositoryURL: repository.url,
+                    path: node.path,
+                    highlightLine: nil
+                )
+            } else {
+                explorerPrompt
+            }
         }
+    }
+
+    private var explorerPrompt: some View {
+        VStack(spacing: DT.Space.sm) {
+            Spacer()
+            Image(systemName: "folder")
+                .font(.system(size: 36, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text(L("左でファイルをクリックすると内容が表示されます"))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var searchPrompt: some View {
+        VStack(spacing: DT.Space.sm) {
+            Spacer()
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 36, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text(L("左で検索結果をクリックすると詳細が表示されます"))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private var pickCommitPrompt: some View {

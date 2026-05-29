@@ -241,6 +241,40 @@ final class GitClient: @unchecked Sendable {
         return result
     }
 
+    /// Plain-text search over tracked files via `git grep`.
+    /// Returns one result per match (a line that contains `query`).
+    func grep(query: String) async throws -> [GrepResult] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        // -n: line numbers
+        // -I: skip binary files
+        // --null: NUL between path / line / content
+        // --no-color: keep output plain
+        // -F: treat query as fixed string (literal, not regex)
+        // -i: case-insensitive (drop this for case-sensitive search)
+        let output: String
+        do {
+            output = try await run("grep", "-n", "-I", "--null", "--no-color", "-F", "-i", "-e", trimmed)
+        } catch let GitError.commandFailed(status, _, _) where status == 1 {
+            // `git grep` exits 1 when there are zero matches; treat as empty.
+            return []
+        }
+        return parseGrep(output)
+    }
+
+    private func parseGrep(_ output: String) -> [GrepResult] {
+        var result: [GrepResult] = []
+        for line in output.split(separator: "\n", omittingEmptySubsequences: true) {
+            let parts = line.split(separator: "\u{0}", omittingEmptySubsequences: false)
+            guard parts.count >= 3,
+                  let lineNo = Int(parts[1]) else { continue }
+            let path = String(parts[0])
+            let content = parts.dropFirst(2).joined(separator: "\u{0}")
+            result.append(GrepResult(path: path, lineNumber: lineNo, content: String(content)))
+        }
+        return result
+    }
+
     func writeFile(path: String, content: String) throws {
         let url = repositoryURL.appendingPathComponent(path)
         let dir = url.deletingLastPathComponent()

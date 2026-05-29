@@ -92,6 +92,28 @@
 "Description" = "Description";
 "%d 件を %@ にコミット" = "Commit %d files to %@";
 
+/* ===== File picker ===== */
+"ファイルパスで絞り込み" = "Filter by file path";
+"ファイル名を入力" = "Type a file name";
+"ファイルが見つかりません" = "No files found";
+
+/* ===== Global search ===== */
+"検索" = "Search";
+"文字列を検索" = "Search text";
+"結果なし" = "No results";
+"%d 件 / %d ファイル" = "%d matches in %d files";
+"検索したい文字列を入力してください" = "Type something to search for";
+"一致する結果がありません" = "No matches";
+"左で検索結果をクリックすると詳細が表示されます" = "Click a search result on the left to see details";
+"ファイルが空です" = "File is empty";
+"ファイルの読み込みに失敗: %@" = "Failed to load file: %@";
+
+/* ===== Explorer ===== */
+"エクスプローラ" = "Explorer";
+"ファイルがありません" = "No files";
+"更新" = "Refresh";
+"左でファイルをクリックすると内容が表示されます" = "Click a file on the left to see its content";
+
 /* ===== Editor ===== */
 "編集" = "Edit";
 "保存" = "Save";

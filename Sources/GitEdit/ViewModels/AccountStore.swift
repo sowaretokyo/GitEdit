@@ -131,10 +131,11 @@ final class AccountStore: ObservableObject {
 
     // MARK: - Restore
 
+    /// Restore the cached profile WITHOUT touching the Keychain at startup —
+    /// otherwise macOS keeps prompting for keychain access on unsigned
+    /// `swift run` builds. The token is fetched lazily via `currentToken` only
+    /// when actually needed (e.g. an API request).
     private func loadStoredAccount() {
-        guard KeychainStore.readString(account: Self.keychainAccount) != nil else {
-            return
-        }
         guard let data = UserDefaults.standard.data(forKey: Self.defaultsKey),
               let account = try? JSONDecoder().decode(GitHubAccount.self, from: data) else {
             return

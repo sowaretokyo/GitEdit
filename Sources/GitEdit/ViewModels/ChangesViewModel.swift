@@ -36,6 +36,9 @@ final class ChangesViewModel: ObservableObject {
     @Published var commitMessage: String = ""
     @Published var commitDescription: String = ""
     @Published var commitHistory: [String] = []
+    /// Bumped after each successful commit so observers (e.g. RepositoryView)
+    /// can refresh ahead/behind counts to light up the Push toolbar button.
+    @Published var commitVersion: Int = 0
     @Published var currentBranch: String?
     @Published var isCommitting: Bool = false
     @Published var lastError: String?
@@ -274,6 +277,7 @@ final class ChangesViewModel: ObservableObject {
             commitMessage = ""
             commitDescription = ""
             await refreshAll()
+            commitVersion &+= 1
         } catch {
             lastError = error.localizedDescription
         }

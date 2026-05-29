@@ -1,0 +1,33 @@
+name: 機能リクエスト
+description: 新しい機能や改善のアイデア
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        アイデアありがとうございます。
+        GitEdit は「ほどよく出来ることを制限して、初心者でも事故りにくい」
+        ことを優先しているので、機能の追加よりまず「なぜ必要か」を聞かせてください。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 解決したい問題
+      description: どんな状況で困っているか、どんな作業が面倒か。
+      placeholder: 例）ブランチを切り替える時に、未コミットの変更があっても警告だけで stash できない
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提案する機能
+      description: どんな UI / 挙動を想像しているか。スクリーンショットや図歓迎。
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 代替案 / 既存の回避策
+      description: 今はどうやって回避しているか、他のツールでの解決方法など

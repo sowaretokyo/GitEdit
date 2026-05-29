@@ -1,5 +1,10 @@
 # GitEdit
 
+[![CI](https://github.com/sowaretokyo/GitEdit/actions/workflows/ci.yml/badge.svg)](https://github.com/sowaretokyo/GitEdit/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/sowaretokyo/GitEdit?display_name=tag)](https://github.com/sowaretokyo/GitEdit/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)](#必要環境)
+
 GitHub Desktop の哲学を受け継ぐ、macOS ネイティブの Git GUI クライアント。
 
 > 「ほどよく出来ることを制限して、変なことが起きないように」をそのままに、Apple らしい使い心地で。
@@ -103,6 +108,15 @@ scripts/
 ## 参考
 
 - GitHub Desktop (TypeScript/Electron): https://github.com/desktop/desktop
+
+## コントリビュート
+
+歓迎します。Issue / PR どちらも受け付けています。
+
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — 開発環境・アーキ方針・コーディング規約
+- [CHANGELOG.md](./CHANGELOG.md) — 各バージョンの変更点
+- [SECURITY.md](./SECURITY.md) — 脆弱性報告窓口
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) — Contributor Covenant 2.1
 
 ## ライセンス
 

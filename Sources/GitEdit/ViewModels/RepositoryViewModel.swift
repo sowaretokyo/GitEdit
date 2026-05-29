@@ -193,9 +193,9 @@ final class RepositoryViewModel: ObservableObject {
             try await git.fetch(allRemotes: true, prune: true)
             await refresh()
             bumpDataVersion()
-            operationSuccess = L("取得が完了しました")
+            operationSuccess = L("フェッチが完了しました")
         } catch {
-            operationError = L("取得に失敗: %@", error.localizedDescription)
+            operationError = L("フェッチに失敗: %@", error.localizedDescription)
         }
     }
 
@@ -207,9 +207,9 @@ final class RepositoryViewModel: ObservableObject {
             try await git.pull()
             await refresh()
             bumpDataVersion()
-            operationSuccess = L("取り込みが完了しました")
+            operationSuccess = L("プルが完了しました")
         } catch {
-            operationError = L("取り込みに失敗: %@", error.localizedDescription)
+            operationError = L("プルに失敗: %@", error.localizedDescription)
         }
     }
 
@@ -222,9 +222,9 @@ final class RepositoryViewModel: ObservableObject {
             try await git.push(setUpstream: needsUpstream)
             await refresh()
             bumpDataVersion()
-            operationSuccess = needsUpstream ? L("ブランチを公開しました") : L("反映が完了しました")
+            operationSuccess = needsUpstream ? L("ブランチをプッシュしました") : L("プッシュが完了しました")
         } catch {
-            operationError = L("反映に失敗: %@", error.localizedDescription)
+            operationError = L("プッシュに失敗: %@", error.localizedDescription)
         }
     }
 

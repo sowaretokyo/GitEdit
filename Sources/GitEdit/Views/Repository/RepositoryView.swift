@@ -206,7 +206,7 @@ struct NetworkOpsToolbarItems: View {
     @ObservedObject var repoVM: RepositoryViewModel
 
     private var pushTitle: String {
-        repoVM.hasUpstream ? L("反映") : L("公開")
+        repoVM.hasUpstream ? L("プッシュ") : L("プッシュ（初回）")
     }
 
     private var pushIcon: String {
@@ -218,7 +218,7 @@ struct NetworkOpsToolbarItems: View {
             Button {
                 Task { await repoVM.fetch() }
             } label: {
-                Label(L("取得"), systemImage: "arrow.triangle.2.circlepath")
+                Label(L("フェッチ"), systemImage: "arrow.triangle.2.circlepath")
                     .rotationEffect(.degrees(repoVM.isFetching ? 360 : 0))
                     .animation(
                         repoVM.isFetching
@@ -227,21 +227,21 @@ struct NetworkOpsToolbarItems: View {
                         value: repoVM.isFetching
                     )
             }
-            .help(L("取得"))
+            .help(L("フェッチ"))
             .disabled(repoVM.isBusy || !repoVM.hasRemotes)
 
             Button {
                 Task { await repoVM.pull() }
             } label: {
                 ZStack {
-                    Label(L("取り込み"), systemImage: "arrow.down.circle")
+                    Label(L("プル"), systemImage: "arrow.down.circle")
                         .opacity(repoVM.isPulling ? 0.4 : 1)
                     if repoVM.isPulling {
                         ProgressView().controlSize(.small)
                     }
                 }
             }
-            .help(L("取り込み"))
+            .help(L("プル"))
             .disabled(repoVM.isBusy || !repoVM.hasUpstream || repoVM.behind == 0)
             .overlay(alignment: .topTrailing) {
                 if repoVM.behind > 0 {

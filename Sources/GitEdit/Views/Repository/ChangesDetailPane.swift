@@ -61,9 +61,9 @@ struct ChangesDetailPane: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(L("origin に %d 件のコミットを反映できます", repoVM.ahead))
+                Text(L("origin に %d 件のコミットをプッシュできます", repoVM.ahead))
                     .font(.body.weight(.semibold))
-                Text(L("ツールバーの「反映」ボタンを押してください。"))
+                Text(L("ツールバーの「プッシュ」ボタンを押してください。"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -73,7 +73,7 @@ struct ChangesDetailPane: View {
             Button {
                 Task { await repoVM.push() }
             } label: {
-                Text(L("反映"))
+                Text(L("プッシュ"))
                     .frame(minWidth: 80)
             }
             .buttonStyle(.borderedProminent)

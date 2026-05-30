@@ -103,6 +103,25 @@ CI でも自動で走ります（`.github/workflows/ci.yml`）。
 軽微な PR はそのまま、デザイン判断を含む PR は Issue で擦り合わせてから出してもらえると
 スムーズです。
 
+## リリース運用（メンテナ向け）
+
+`bash scripts/release.sh` で対話的にタグを切ると CI が `.dmg` を作って Releases に上げます。
+CI で署名・Notarize するため、リポジトリの **Settings → Secrets and variables → Actions**
+に以下を登録しておく必要があります：
+
+| Secret | 内容 |
+| --- | --- |
+| `BUILD_CERTIFICATE_BASE64` | Developer ID 証明書 (.p12) を `base64 -i cert.p12` した文字列 |
+| `P12_PASSWORD` | .p12 のパスワード |
+| `KEYCHAIN_PASSWORD` | CI 内で作る一時キーチェーンのパスワード（任意） |
+| `SIGNING_IDENTITY` | `Developer ID Application: <Name> (TEAMID)` |
+| `APPLE_ID` | Apple ID メールアドレス |
+| `APPLE_ID_PASSWORD` | [App 用パスワード](https://account.apple.com/account/manage) |
+| `APPLE_TEAM_ID` | 10 桁のチーム ID |
+
+DMG レイアウトは `scripts/sign-and-notarize.sh` 内の `create-dmg` 呼び出しで定義。
+背景画像は `scripts/assets/dmg-background.png`（540×380 / Retina は 1080×760）。
+
 ## ライセンス
 
 このプロジェクトに貢献することで、あなたのコントリビューションが

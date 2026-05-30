@@ -42,100 +42,78 @@ Vercel 上の LP からもダウンロードできます（準備中）。
 ## 開発
 
 ```bash
-# Xcode で開く（推奨）
-open Package.swift
-
-# ターミナルで実行
-swift run
+open Package.swift   # Xcode で開く
+swift run            # ターミナルから起動
+swift test           # ユニットテスト
 ```
 
-## ローカルでの .app / .dmg ビルド
+ローカルで `.app` だけ作りたい場合：
 
 ```bash
-# .app を build/GitEdit.app に生成
-bash scripts/build-app.sh
-
-# 署名 + Notarize + .dmg 化（Apple Developer 加入が必要）
-export SIGNING_IDENTITY="Developer ID Application: <Your Name> (TEAMID)"
-export APPLE_ID="you@example.com"
-export APPLE_ID_PASSWORD="app-specific-password"
-export APPLE_TEAM_ID="ABCDE12345"
-bash scripts/sign-and-notarize.sh
+bash scripts/build-app.sh   # build/GitEdit.app を生成（未署名）
 ```
 
-未署名で動作確認だけしたい場合は `scripts/build-app.sh` だけ走らせて `build/GitEdit.app` を開けば OK（初回は右クリック→開く）。
+初回起動時は Gatekeeper に弾かれるので、Finder で右クリック → 開く。
 
-## リリースフロー（CI）
-
-`v*` タグを push すると GitHub Actions が自動で Universal `.dmg` をビルド・署名・Notarize して
-Releases に添付します。
-
-### 簡単な方法（推奨）
+## リリース
 
 ```bash
 bash scripts/release.sh
 ```
 
-直近のタグから patch / minor / major のどれを上げるかを対話で選び、確認後にタグを切って
-push します。実行前に「main にいる」「未コミット変更なし」「origin/main と同期済み」を自動で
-チェックします。
+`patch / minor / major` のどれを上げるかを対話で選ぶと、タグを切って push します。
+あとは GitHub Actions が `.dmg` を作って [Releases](https://github.com/sowaretokyo/GitEdit/releases/latest) に上げます。
 
 ```bash
-# 引数で直接指定もできる
+# 引数指定も可
 bash scripts/release.sh patch    # v0.1.0 → v0.1.1
 bash scripts/release.sh minor    # v0.1.0 → v0.2.0
 bash scripts/release.sh major    # v0.1.0 → v1.0.0
-bash scripts/release.sh 1.2.3    # 明示的なバージョン
 ```
 
-### 手動で
-
-```bash
-git tag v0.1.0 && git push origin v0.1.0
-```
-
-配布ファイル名はバージョンに依存させず常に `GitEdit.dmg` 固定です。
-これにより以下の URL は永久不変で、Vercel LP 側からのリンクを張り替える必要はありません：
+ダウンロード URL はバージョンに依存せず常に固定：
 
 ```
 https://github.com/sowaretokyo/GitEdit/releases/latest/download/GitEdit.dmg
 ```
 
-DMG 内のレイアウト（ウィンドウサイズ・アプリ位置・Applications ショートカット）は
-[create-dmg](https://github.com/create-dmg/create-dmg) で整形しています。
-`scripts/assets/dmg-background.png` を置くとそれを背景画像として使います
-（推奨サイズ 540×380）。
+### 初回セットアップ（Secrets）
 
-事前に **Settings → Secrets and variables → Actions** に以下を登録してください：
+CI で `.dmg` を署名・Notarize するため、リポジトリの
+**Settings → Secrets and variables → Actions** に以下を登録：
 
 | Secret | 内容 |
 | --- | --- |
-| `BUILD_CERTIFICATE_BASE64` | Developer ID Application 証明書（.p12）を `base64 -i cert.p12` した文字列 |
+| `BUILD_CERTIFICATE_BASE64` | Developer ID 証明書 (.p12) を `base64 -i cert.p12` した文字列 |
 | `P12_PASSWORD` | .p12 のパスワード |
-| `KEYCHAIN_PASSWORD` | CI 内で作る一時キーチェーンのパスワード（任意の文字列） |
-| `SIGNING_IDENTITY` | `Developer ID Application: <Your Name> (TEAMID)` |
+| `KEYCHAIN_PASSWORD` | CI 内で作る一時キーチェーンのパスワード（任意） |
+| `SIGNING_IDENTITY` | `Developer ID Application: <Name> (TEAMID)` |
 | `APPLE_ID` | Apple ID メールアドレス |
-| `APPLE_ID_PASSWORD` | [App-specific password](https://appleid.apple.com/account/manage) |
+| `APPLE_ID_PASSWORD` | [App 用パスワード](https://account.apple.com/account/manage) |
 | `APPLE_TEAM_ID` | 10 桁のチーム ID |
+
+### DMG の見た目
+
+レイアウトは [create-dmg](https://github.com/create-dmg/create-dmg) で整形しています。
+背景画像を差し替えたい場合は `scripts/assets/dmg-background.png` を置き換え
+（540×380、Retina なら 1080×760）。
 
 ## 構成
 
 ```
-Sources/GitEdit/
-├── GitEditApp.swift       # @main + AppDelegate
-├── Editor/                # CodeEditor (NSTextView) / DiffView
-├── Theme/                 # デザイントークン
-├── Views/                 # SwiftUI ビュー
-├── ViewModels/            # 状態管理
-├── Models/                # データモデル
-├── Services/              # git CLI ラッパー、パーサー
-└── Resources/             # AppIcon.png, i18n strings
+Sources/GitEdit/        SwiftUI + AppKit 本体
+Tests/GitEditTests/     パーサ・モデルのユニットテスト
 scripts/
-├── build-app.sh           # SwiftPM → .app バンドル化
-├── sign-and-notarize.sh   # 署名 + Notarize + .dmg
-└── entitlements.plist     # Hardened Runtime 用
-.github/workflows/release.yml  # タグ push で .dmg を Releases に
+├── build-app.sh         SwiftPM → .app バンドル化
+├── sign-and-notarize.sh 署名 + Notarize + .dmg
+├── release.sh           対話的にタグを切って push
+└── assets/              DMG 背景画像など
+.github/workflows/
+├── ci.yml               PR / main で swift test
+└── release.yml          タグ push で .dmg を Releases に
 ```
+
+詳しい構成とアーキ方針は [CONTRIBUTING.md](./CONTRIBUTING.md) を参照。
 
 ## 参考
 

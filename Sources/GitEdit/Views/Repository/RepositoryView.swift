@@ -86,6 +86,15 @@ struct RepositoryView: View {
                 }
             }
         }
+        // ChangesViewModel owns commit / stage / save errors but has no banner of
+        // its own — forward them into the shared repository banner so the UI is
+        // consistent regardless of where the failure originated.
+        .onChange(of: changesVM.lastError) { _, newValue in
+            if let err = newValue {
+                repoVM.operationError = err
+                changesVM.clearLastError()
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 CurrentRepositoryPicker()
@@ -119,6 +128,9 @@ struct RepositoryView: View {
         }
         .overlay(alignment: .bottomTrailing) {
             OperationFeedbackBanner(repoVM: repoVM)
+        }
+        .sheet(item: $repoVM.inspectingError) { err in
+            ErrorInspectorSheet(error: err, repoVM: repoVM)
         }
         .sheet(isPresented: $isShowingFilePicker) {
             FilePickerSheet(
@@ -295,26 +307,122 @@ struct OperationFeedbackBanner: View {
     var body: some View {
         Group {
             if let error = repoVM.operationError {
-                banner(text: error, icon: "exclamationmark.triangle.fill", color: Color(nsColor: .systemRed))
+                ErrorBanner(error: error, repoVM: repoVM)
             } else if let success = repoVM.operationSuccess {
-                banner(text: success, icon: "checkmark.circle.fill", color: Color(nsColor: .systemGreen))
+                SuccessBanner(message: success) {
+                    repoVM.dismissFeedback()
+                }
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: repoVM.operationError)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: repoVM.operationSuccess)
     }
+}
 
-    private func banner(text: String, icon: String, color: Color) -> some View {
+/// Compact error banner: title + one-line summary + "詳細" entry point.
+/// Stays on screen until dismissed — error messages are too important to
+/// auto-dismiss like success toasts do.
+private struct ErrorBanner: View {
+    let error: GitOperationError
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DT.Space.sm) {
+            HStack(alignment: .top, spacing: DT.Space.sm) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Color(nsColor: .systemRed))
+                    .imageScale(.medium)
+                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(error.title)
+                        .font(.callout.weight(.semibold))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Text(error.summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: DT.Space.sm)
+                Button {
+                    repoVM.dismissFeedback()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack(spacing: DT.Space.sm) {
+                if let primary = error.suggestions.first(where: { $0.isPrimary }),
+                   let action = primary.action,
+                   isQuickAction(action) {
+                    Button {
+                        Task { await repoVM.perform(action) }
+                    } label: {
+                        Text(primary.label)
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+
+                Button {
+                    repoVM.presentErrorDetails()
+                } label: {
+                    Text(L("詳細を表示"))
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(DT.Space.md)
+        .background(
+            RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
+                        .strokeBorder(Color(nsColor: .systemRed).opacity(0.4), lineWidth: 0.5)
+                )
+                .shadow(color: .black.opacity(0.18), radius: 18, y: 6)
+        )
+        .frame(maxWidth: 440)
+        .padding(.trailing, DT.Space.md)
+        .padding(.bottom, DT.Space.md)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    /// In-banner quick action: must be safe to run immediately without
+    /// additional input. Other suggestions (open settings, copy details) are
+    /// reached through "詳細を表示".
+    private func isQuickAction(_ action: GitOperationError.Suggestion.Action) -> Bool {
+        switch action {
+        case .pull, .fetch, .push, .retry: return true
+        default: return false
+        }
+    }
+}
+
+/// Standard success toast — auto-dismisses after a few seconds.
+private struct SuccessBanner: View {
+    let message: String
+    let onDismiss: () -> Void
+
+    var body: some View {
         HStack(spacing: DT.Space.sm) {
-            Image(systemName: icon).foregroundStyle(color)
-            Text(text)
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(Color(nsColor: .systemGreen))
+            Text(message)
                 .font(.callout)
-                .lineLimit(3)
+                .lineLimit(2)
                 .multilineTextAlignment(.leading)
             Spacer(minLength: DT.Space.md)
-            Button {
-                repoVM.dismissFeedback()
-            } label: {
+            Button(action: onDismiss) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.tertiary)
             }
@@ -327,7 +435,7 @@ struct OperationFeedbackBanner: View {
                 .fill(.ultraThinMaterial)
                 .overlay(
                     RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
-                        .strokeBorder(color.opacity(0.4), lineWidth: 0.5)
+                        .strokeBorder(Color(nsColor: .systemGreen).opacity(0.4), lineWidth: 0.5)
                 )
                 .shadow(color: .black.opacity(0.12), radius: 14, y: 4)
         )
@@ -337,7 +445,7 @@ struct OperationFeedbackBanner: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .task {
             try? await Task.sleep(nanoseconds: 4_000_000_000)
-            await MainActor.run { repoVM.dismissFeedback() }
+            await MainActor.run { onDismiss() }
         }
     }
 }

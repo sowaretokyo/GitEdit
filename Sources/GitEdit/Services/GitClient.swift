@@ -84,14 +84,22 @@ final class GitClient: @unchecked Sendable {
     // MARK: - Repository-less ops
 
     static func clone(url: String, into destination: URL) async throws {
-        let parent = destination.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
-        try await runGit(["clone", "--progress", url, destination.path])
+        do {
+            let parent = destination.deletingLastPathComponent()
+            try? FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+            try await runGit(["clone", "--progress", url, destination.path])
+        } catch {
+            throw GitErrorClassifier.classify(error, operation: .clone)
+        }
     }
 
     static func initRepository(at directory: URL, initialBranch: String = "main") async throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try await runGit(["init", "-b", initialBranch, directory.path])
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try await runGit(["init", "-b", initialBranch, directory.path])
+        } catch {
+            throw GitErrorClassifier.classify(error, operation: .initRepo)
+        }
     }
 
     // MARK: - Repo metadata
@@ -149,25 +157,35 @@ final class GitClient: @unchecked Sendable {
     // MARK: - Staging
 
     func stage(path: String) async throws {
-        try await run("add", "--", path)
+        try await runClassified(operation: .stage) {
+            try await self.run("add", "--", path)
+        }
     }
 
     func unstage(path: String) async throws {
-        try await run("restore", "--staged", "--", path)
+        try await runClassified(operation: .unstage) {
+            try await self.run("restore", "--staged", "--", path)
+        }
     }
 
     func stageAll() async throws {
-        try await run("add", "-A")
+        try await runClassified(operation: .stage) {
+            try await self.run("add", "-A")
+        }
     }
 
     func unstageAll() async throws {
-        try await run("restore", "--staged", ".")
+        try await runClassified(operation: .unstage) {
+            try await self.run("restore", "--staged", ".")
+        }
     }
 
     // MARK: - Commit
 
     func commit(message: String) async throws {
-        try await run("commit", "-m", message)
+        try await runClassified(operation: .commit) {
+            try await self.run("commit", "-m", message)
+        }
     }
 
     // MARK: - Diff
@@ -368,30 +386,38 @@ final class GitClient: @unchecked Sendable {
     }
 
     func createBranch(name: String, startingFrom: String? = nil, checkout: Bool = true) async throws {
-        if checkout {
-            var args = ["checkout", "-b", name]
-            if let start = startingFrom { args.append(start) }
-            try await run(args)
-        } else {
-            var args = ["branch", name]
-            if let start = startingFrom { args.append(start) }
-            try await run(args)
+        try await runClassified(operation: .createBranch) {
+            if checkout {
+                var args = ["checkout", "-b", name]
+                if let start = startingFrom { args.append(start) }
+                try await self.run(args)
+            } else {
+                var args = ["branch", name]
+                if let start = startingFrom { args.append(start) }
+                try await self.run(args)
+            }
         }
     }
 
     func switchBranch(name: String) async throws {
-        try await run("switch", name)
+        try await runClassified(operation: .switchBranch) {
+            try await self.run("switch", name)
+        }
     }
 
     func deleteBranch(name: String, force: Bool = false) async throws {
-        try await run("branch", force ? "-D" : "-d", name)
+        try await runClassified(operation: .deleteBranch) {
+            try await self.run("branch", force ? "-D" : "-d", name)
+        }
     }
 
     func merge(branch: String, noFastForward: Bool = false) async throws {
-        var args = ["merge"]
-        if noFastForward { args.append("--no-ff") }
-        args.append(branch)
-        try await run(args)
+        try await runClassified(operation: .merge) {
+            var args = ["merge"]
+            if noFastForward { args.append("--no-ff") }
+            args.append(branch)
+            try await self.run(args)
+        }
     }
 
     // MARK: - Remotes & Network
@@ -417,27 +443,53 @@ final class GitClient: @unchecked Sendable {
     }
 
     func fetch(remote: String? = nil, allRemotes: Bool = false, prune: Bool = true) async throws {
-        var args = ["fetch", "--progress"]
-        if prune { args.append("--prune") }
-        if allRemotes {
-            args.append("--all")
-        } else if let remote {
-            args.append(remote)
+        try await runClassified(operation: .fetch) {
+            var args = ["fetch", "--progress"]
+            if prune { args.append("--prune") }
+            if allRemotes {
+                args.append("--all")
+            } else if let remote {
+                args.append(remote)
+            }
+            try await self.run(args)
         }
-        try await run(args)
     }
 
     /// Fast-forward only pull. Fails if not fast-forwardable; caller can show the error.
     func pull(remote: String = "origin") async throws {
-        try await run("pull", "--ff-only", "--progress", remote)
+        try await runClassified(operation: .pull) {
+            try await self.run("pull", "--ff-only", "--progress", remote)
+        }
     }
 
     /// Push current branch to `remote`. If `setUpstream` is true, also `-u`.
     func push(remote: String = "origin", branch: String? = nil, setUpstream: Bool = false) async throws {
-        var args = ["push", "--progress"]
-        if setUpstream { args.append("-u") }
-        args.append(remote)
-        if let branch { args.append(branch) }
-        try await run(args)
+        try await runClassified(operation: .push) {
+            var args = ["push", "--progress"]
+            if setUpstream { args.append("-u") }
+            args.append(remote)
+            if let branch { args.append(branch) }
+            try await self.run(args)
+        }
+    }
+
+    // MARK: - Error classification
+
+    /// Runs `body` and translates any thrown `GitError.commandFailed` into a
+    /// `GitOperationError` tagged with the given operation. Other errors are
+    /// rethrown verbatim. Call sites get a single, structured error type to
+    /// drive the UI without duplicating classification logic everywhere.
+    @discardableResult
+    private func runClassified<T>(
+        operation: GitOperationError.Operation,
+        _ body: () async throws -> T
+    ) async throws -> T {
+        do {
+            return try await body()
+        } catch let opError as GitOperationError {
+            throw opError
+        } catch {
+            throw GitErrorClassifier.classify(error, operation: operation)
+        }
     }
 }

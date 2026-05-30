@@ -39,7 +39,10 @@ final class ChangesViewModel: ObservableObject {
     @Published var commitVersion: Int = 0
     @Published var currentBranch: String?
     @Published var isCommitting: Bool = false
-    @Published var lastError: String?
+    /// Structured error from the most recent operation. The host view observes
+    /// this and forwards it to the shared repository-level error banner so
+    /// commit / stage / save errors surface in the same UI as push / pull.
+    @Published var lastError: GitOperationError?
 
     private let git: GitClient
 
@@ -85,7 +88,7 @@ final class ChangesViewModel: ObservableObject {
                 await loadEditorContentIfNeeded()
             }
         } catch {
-            lastError = error.localizedDescription
+            report(error, operation: .other(L("ステータス取得")))
         }
     }
 
@@ -210,7 +213,7 @@ final class ChangesViewModel: ObservableObject {
             changes = (try? await git.status()) ?? changes
             selectedPath = prev
         } catch {
-            lastError = L("保存に失敗: %@", error.localizedDescription)
+            report(error, operation: .other(L("ファイル保存")))
         }
     }
 
@@ -233,7 +236,7 @@ final class ChangesViewModel: ObservableObject {
             }
             await refreshStatus()
         } catch {
-            lastError = error.localizedDescription
+            report(error, operation: change.willBeCommitted ? .unstage : .stage)
         }
     }
 
@@ -247,7 +250,7 @@ final class ChangesViewModel: ObservableObject {
             }
             await refreshStatus()
         } catch {
-            lastError = error.localizedDescription
+            report(error, operation: target ? .stage : .unstage)
         }
     }
 
@@ -258,7 +261,10 @@ final class ChangesViewModel: ObservableObject {
         let body = commitDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !summary.isEmpty else { return }
         guard stagedCount > 0 else {
-            lastError = L("ステージされた変更がありません。チェックボックスでファイルを含めてください。")
+            lastError = GitErrorClassifier.classify(
+                stderr: "nothing to commit",
+                operation: .commit
+            )
             return
         }
         // Combine summary + description into a single git commit message.
@@ -277,7 +283,20 @@ final class ChangesViewModel: ObservableObject {
             await refreshAll()
             commitVersion &+= 1
         } catch {
-            lastError = error.localizedDescription
+            report(error, operation: .commit)
         }
+    }
+
+    // MARK: - Error reporting
+
+    /// Classifies the error and exposes it as `lastError`. The host view
+    /// (`RepositoryView`) observes this property and forwards it to the
+    /// shared repository-level error banner.
+    func report(_ error: Error, operation: GitOperationError.Operation) {
+        lastError = GitErrorClassifier.classify(error, operation: operation)
+    }
+
+    func clearLastError() {
+        lastError = nil
     }
 }

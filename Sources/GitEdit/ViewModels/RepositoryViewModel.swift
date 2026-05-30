@@ -25,8 +25,10 @@ final class RepositoryViewModel: ObservableObject {
     @Published var isPushing: Bool = false
 
     // MARK: - User feedback
-    @Published var operationError: String?
+    @Published var operationError: GitOperationError?
     @Published var operationSuccess: String?
+    /// When set, the UI presents an inspector sheet with the full error details.
+    @Published var inspectingError: GitOperationError?
 
     // MARK: - Refresh trigger for downstream view models
     @Published var dataVersion: Int = 0
@@ -192,7 +194,7 @@ final class RepositoryViewModel: ObservableObject {
             bumpDataVersion()
             operationSuccess = L("ブランチを切り替えました: %@", targetName)
         } catch {
-            operationError = L("切替に失敗: %@", error.localizedDescription)
+            report(error, operation: .switchBranch)
         }
     }
 
@@ -203,7 +205,7 @@ final class RepositoryViewModel: ObservableObject {
             bumpDataVersion()
             operationSuccess = L("ブランチを作成しました: %@", name)
         } catch {
-            operationError = L("作成に失敗: %@", error.localizedDescription)
+            report(error, operation: .createBranch)
         }
     }
 
@@ -214,7 +216,7 @@ final class RepositoryViewModel: ObservableObject {
             bumpDataVersion()
             operationSuccess = L("マージしました: %@", branch.name)
         } catch {
-            operationError = L("マージに失敗: %@", error.localizedDescription)
+            report(error, operation: .merge)
         }
     }
 
@@ -224,7 +226,7 @@ final class RepositoryViewModel: ObservableObject {
             await refresh()
             operationSuccess = L("ブランチを削除しました: %@", branch.name)
         } catch {
-            operationError = L("削除に失敗: %@", error.localizedDescription)
+            report(error, operation: .deleteBranch)
         }
     }
 
@@ -240,7 +242,7 @@ final class RepositoryViewModel: ObservableObject {
             bumpDataVersion()
             operationSuccess = L("フェッチが完了しました")
         } catch {
-            operationError = L("フェッチに失敗: %@", error.localizedDescription)
+            report(error, operation: .fetch)
         }
     }
 
@@ -254,7 +256,7 @@ final class RepositoryViewModel: ObservableObject {
             bumpDataVersion()
             operationSuccess = L("プルが完了しました")
         } catch {
-            operationError = L("プルに失敗: %@", error.localizedDescription)
+            report(error, operation: .pull)
         }
     }
 
@@ -269,12 +271,74 @@ final class RepositoryViewModel: ObservableObject {
             bumpDataVersion()
             operationSuccess = needsUpstream ? L("ブランチをプッシュしました") : L("プッシュが完了しました")
         } catch {
-            operationError = L("プッシュに失敗: %@", error.localizedDescription)
+            report(error, operation: .push)
         }
     }
 
     func dismissFeedback() {
         operationError = nil
         operationSuccess = nil
+    }
+
+    // MARK: - Error handling
+
+    /// Funnels every catch site through the classifier so the banner and the
+    /// detail inspector share a single, structured payload.
+    func report(_ error: Error, operation: GitOperationError.Operation) {
+        operationError = GitErrorClassifier.classify(error, operation: operation)
+    }
+
+    /// Show the detailed inspector sheet for the active error.
+    func presentErrorDetails() {
+        inspectingError = operationError
+    }
+
+    func dismissErrorDetails() {
+        inspectingError = nil
+    }
+
+    // MARK: - Suggestion actions
+
+    /// Executes the suggested follow-up action and dismisses the error.
+    func perform(_ action: GitOperationError.Suggestion.Action) async {
+        // Clear the visible banner first so the user sees the new operation
+        // begin even if it also fails. The inspector sheet (if open) keeps
+        // the original error around until explicitly dismissed.
+        let originalError = operationError
+        operationError = nil
+        inspectingError = nil
+
+        switch action {
+        case .pull:
+            await pull()
+        case .fetch:
+            await fetch()
+        case .push:
+            await push()
+        case .retry:
+            // Replay the original operation, if known.
+            if let op = originalError?.operation {
+                await retry(operation: op)
+            }
+        case .openCommitTab, .openIdentitySettings, .openAccountSettings, .openHelp, .copyDetails:
+            // Handled by the view layer (it has access to NSWorkspace / clipboard
+            // / tab selection state).
+            break
+        }
+    }
+
+    private func retry(operation op: GitOperationError.Operation) async {
+        switch op {
+        case .push: await push()
+        case .pull: await pull()
+        case .fetch: await fetch()
+        case .merge, .commit, .stage, .unstage,
+             .switchBranch, .createBranch, .deleteBranch,
+             .clone, .initRepo, .other:
+            // No-op: these operations need their original arguments which we
+            // didn't snapshot. The "Retry" suggestion is only surfaced for
+            // network ops where re-running with the same args is safe.
+            break
+        }
     }
 }

@@ -70,12 +70,28 @@ bash scripts/sign-and-notarize.sh
 `v*` タグを push すると GitHub Actions が自動で Universal `.dmg` をビルド・署名・Notarize して
 Releases に添付します。
 
-```bash
-# 初回
-git tag v0.1.0 && git push origin v0.1.0
+### 簡単な方法（推奨）
 
-# アップデート（main にマージ後、新しいバージョンタグを切るだけ）
-git tag v0.2.0 && git push origin v0.2.0
+```bash
+bash scripts/release.sh
+```
+
+直近のタグから patch / minor / major のどれを上げるかを対話で選び、確認後にタグを切って
+push します。実行前に「main にいる」「未コミット変更なし」「origin/main と同期済み」を自動で
+チェックします。
+
+```bash
+# 引数で直接指定もできる
+bash scripts/release.sh patch    # v0.1.0 → v0.1.1
+bash scripts/release.sh minor    # v0.1.0 → v0.2.0
+bash scripts/release.sh major    # v0.1.0 → v1.0.0
+bash scripts/release.sh 1.2.3    # 明示的なバージョン
+```
+
+### 手動で
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
 ```
 
 配布ファイル名はバージョンに依存させず常に `GitEdit.dmg` 固定です。

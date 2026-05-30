@@ -10,18 +10,9 @@ struct CommitRow: View {
         return f
     }()
 
-    private var avatarURL: URL? {
-        GitHubAvatar.url(for: commit.authorEmail, size: 80)
-    }
-
     var body: some View {
         HStack(spacing: DT.Space.md) {
-            AvatarImageView(
-                url: avatarURL,
-                initials: AvatarHash.initials(for: commit.author),
-                tintColor: AvatarHash.tintColor(for: commit.authorEmail),
-                size: 30
-            )
+            AvatarStack(authors: commit.allAuthors, size: 30)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(commit.summary)
@@ -30,8 +21,9 @@ struct CommitRow: View {
                     .truncationMode(.tail)
 
                 HStack(spacing: 6) {
-                    Text(commit.author)
+                    Text(commit.allAuthorDisplayNames)
                         .lineLimit(1)
+                        .truncationMode(.tail)
                     Text("•").foregroundStyle(.tertiary)
                     Text(Self.relativeFormatter.localizedString(for: commit.date, relativeTo: Date()))
                     Text("•").foregroundStyle(.tertiary)

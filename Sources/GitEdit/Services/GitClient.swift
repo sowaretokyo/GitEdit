@@ -289,28 +289,34 @@ final class GitClient: @unchecked Sendable {
     func recentCommits(limit: Int = 200) async throws -> [Commit] {
         let RS = "\u{1E}"
         let US = "\u{1F}"
+        // %B = raw body (including the subject line and any Co-Authored-By
+        // trailers). We pull it so CoAuthorParser can extract co-authors.
         let output = try await run(
             "log", "-n", String(limit),
-            "--format=%H\(US)%h\(US)%aI\(US)%an\(US)%ae\(US)%s\(RS)"
+            "--format=%H\(US)%h\(US)%aI\(US)%an\(US)%ae\(US)%s\(US)%B\(RS)"
         )
 
         let formatter = ISO8601DateFormatter()
         var commits: [Commit] = []
         for record in output.split(separator: Character(RS), omittingEmptySubsequences: true) {
+            // `maxSplits: 6` keeps newlines inside %B from being treated as
+            // field boundaries by accident.
             let fields = record
-                .split(separator: Character(US), omittingEmptySubsequences: false)
+                .split(separator: Character(US), maxSplits: 6, omittingEmptySubsequences: false)
                 .map(String.init)
-            guard fields.count >= 6 else { continue }
+            guard fields.count >= 7 else { continue }
             let dateStr = fields[2].trimmingCharacters(in: .whitespacesAndNewlines)
             let date = formatter.date(from: dateStr) ?? .distantPast
+            let rawBody = fields[6]
             commits.append(Commit(
                 id: fields[0].trimmingCharacters(in: .whitespacesAndNewlines),
                 shortSHA: fields[1],
                 summary: fields[5].trimmingCharacters(in: .whitespacesAndNewlines),
-                body: "",
+                body: rawBody,
                 author: fields[3],
                 authorEmail: fields[4],
-                date: date
+                date: date,
+                coAuthors: CoAuthorParser.parse(from: rawBody)
             ))
         }
         return commits

@@ -164,6 +164,28 @@ final class GitClient: @unchecked Sendable {
         try await run("restore", "--staged", ".")
     }
 
+    // MARK: - Discard
+
+    /// Discard all changes to a tracked file, resetting both the index and the
+    /// working tree to HEAD. Recoverable via reflog / the original commit.
+    func discardTrackedChanges(path: String) async throws {
+        try await run("restore", "--staged", "--worktree", "--", path)
+    }
+
+    /// Discard an untracked path by moving it to the macOS Trash (recoverable
+    /// from Finder), rather than `git clean -f` which deletes permanently.
+    /// If the path was `git add`-ed, also drop it from the index afterwards.
+    func discardUntracked(path: String, wasStaged: Bool) async throws {
+        let url = repositoryURL.appendingPathComponent(path)
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+        }
+        if wasStaged {
+            // Best-effort: clear the now-dangling index entry.
+            try? await run("restore", "--staged", "--", path)
+        }
+    }
+
     // MARK: - Commit
 
     func commit(message: String) async throws {

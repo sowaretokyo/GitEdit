@@ -7,6 +7,7 @@ import AppKit
 struct ChangesSidebar: View {
     @ObservedObject var viewModel: ChangesViewModel
     @State private var filter: String = ""
+    @State private var pendingDiscard: FileChange?
 
     private var filteredChanges: [FileChange] {
         let trimmed = filter.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -29,6 +30,42 @@ struct ChangesSidebar: View {
                 .background(Color(nsColor: .windowBackgroundColor))
         }
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+        .confirmationDialog(
+            discardTitle,
+            isPresented: discardDialogPresented,
+            presenting: pendingDiscard
+        ) { change in
+            Button(discardConfirmLabel(for: change), role: .destructive) {
+                Task { await viewModel.discard(change) }
+            }
+            Button(L("キャンセル"), role: .cancel) {}
+        } message: { change in
+            Text(discardMessage(for: change))
+        }
+    }
+
+    // MARK: - Discard dialog
+
+    private var discardDialogPresented: Binding<Bool> {
+        Binding(
+            get: { pendingDiscard != nil },
+            set: { if !$0 { pendingDiscard = nil } }
+        )
+    }
+
+    private var discardTitle: String {
+        L("変更を破棄しますか？")
+    }
+
+    private func discardConfirmLabel(for change: FileChange) -> String {
+        change.isUntracked ? L("ゴミ箱に移動") : L("変更を破棄")
+    }
+
+    private func discardMessage(for change: FileChange) -> String {
+        if change.isUntracked {
+            return L("%@ をゴミ箱に移動します。Finder のゴミ箱から復元できます。", change.displayPath)
+        }
+        return L("%@ の変更を破棄して HEAD の状態に戻します。この操作は元に戻せません。", change.displayPath)
     }
 
     private var filterBar: some View {
@@ -107,6 +144,13 @@ struct ChangesSidebar: View {
                         )
                         .onTapGesture {
                             Task { await viewModel.select(change) }
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                pendingDiscard = change
+                            } label: {
+                                Label(L("変更を破棄…"), systemImage: "arrow.uturn.backward")
+                            }
                         }
                     }
                 }

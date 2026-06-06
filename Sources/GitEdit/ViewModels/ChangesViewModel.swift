@@ -276,6 +276,29 @@ final class ChangesViewModel: ObservableObject {
         lastToggledPath = change.path
     }
 
+    // MARK: - Discard
+
+    /// Discard a file's changes. Tracked files are reset to HEAD; untracked files
+    /// are moved to the Trash. Destructive — callers should confirm first.
+    func discard(_ change: FileChange) async {
+        do {
+            if change.isUntracked {
+                try await git.discardUntracked(
+                    path: change.path,
+                    wasStaged: change.hasStagedChange
+                )
+            } else {
+                try await git.discardTrackedChanges(path: change.path)
+            }
+            if selectedPath == change.path {
+                resetEditorState()
+            }
+            await refreshStatus()
+        } catch {
+            lastError = L("変更の破棄に失敗: %@", error.localizedDescription)
+        }
+    }
+
     func toggleAll() async {
         let target = !allStaged
         do {

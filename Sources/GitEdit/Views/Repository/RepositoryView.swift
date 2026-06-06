@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// The main view shown when a repository is selected.
 /// Mirrors GitHub Desktop's layout:
@@ -13,6 +14,7 @@ struct RepositoryView: View {
     @StateObject private var historyVM: HistoryViewModel
 
     @State private var selectedTab: Tab = .changes
+    @State private var watcher: RepositoryWatcher?
 
     enum Tab: String, CaseIterable, Identifiable {
         case changes
@@ -45,19 +47,21 @@ struct RepositoryView: View {
         .task {
             await repoVM.bootstrap()
             await changesVM.refreshAll()
+            startWatching()
         }
+        .onDisappear { watcher?.stop(); watcher = nil }
         .onChange(of: selectedTab) { _, newTab in
             if newTab == .history && historyVM.commits.isEmpty {
                 Task { await historyVM.load() }
             }
         }
         .onChange(of: repoVM.dataVersion) { _, _ in
-            Task {
-                await changesVM.refreshAll()
-                if selectedTab == .history {
-                    await historyVM.load()
-                }
-            }
+            Task { await reload() }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
+        ) { _ in
+            Task { await reload() }
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -93,6 +97,28 @@ struct RepositoryView: View {
         .overlay(alignment: .top) {
             OperationFeedbackBanner(repoVM: repoVM)
         }
+    }
+
+    // MARK: - Auto refresh
+
+    /// Re-read everything from disk: branch/ahead-behind, working tree changes,
+    /// and (when relevant) the commit history. Cheap enough to run on every
+    /// detected change because the underlying git calls are debounced upstream.
+    private func reload() async {
+        await repoVM.refresh()
+        await changesVM.refreshAll()
+        if selectedTab == .history || !historyVM.commits.isEmpty {
+            await historyVM.load()
+        }
+    }
+
+    private func startWatching() {
+        guard watcher == nil else { return }
+        let w = RepositoryWatcher(url: repository.url) {
+            Task { await reload() }
+        }
+        w.start()
+        watcher = w
     }
 
     // MARK: - Sidebar

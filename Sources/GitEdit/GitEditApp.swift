@@ -19,6 +19,7 @@ struct GitEditApp: App {
                 .frame(minWidth: 1100, minHeight: 680)
                 .preferredColorScheme(currentAppearance.colorScheme)
                 .id(appLanguage)
+                .task { await store.loadPersisted() }
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: false))

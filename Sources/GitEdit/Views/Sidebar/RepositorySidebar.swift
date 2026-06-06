@@ -12,6 +12,11 @@ struct RepositorySidebar: View {
                     ForEach(store.repositories) { repo in
                         RepositoryRow(repository: repo)
                             .tag(repo.id)
+                            .contextMenu {
+                                Button(L("リストから削除")) {
+                                    store.removeRepository(repo.id)
+                                }
+                            }
                     }
                 } header: {
                     Text(L("リポジトリ"))

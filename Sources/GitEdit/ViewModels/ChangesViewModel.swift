@@ -120,10 +120,12 @@ final class ChangesViewModel: ObservableObject {
         do {
             if change.isUntracked {
                 if let content = git.readFileFromWorkTree(path: change.path) {
-                    diffText = content
-                        .split(separator: "\n", omittingEmptySubsequences: false)
-                        .map { "+\($0)" }
-                        .joined(separator: "\n")
+                    let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
+                    // Synthesize a unified diff so every line renders as an added
+                    // (green) line. The `@@` hunk header is required — without it
+                    // the parser treats the `+` lines as file headers (gray).
+                    let body = lines.map { "+\($0)" }.joined(separator: "\n")
+                    diffText = "@@ -0,0 +1,\(lines.count) @@\n" + body
                 } else {
                     diffText = ""
                 }

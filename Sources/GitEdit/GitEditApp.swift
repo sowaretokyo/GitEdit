@@ -16,13 +16,18 @@ struct GitEditApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(store)
-                .frame(minWidth: 1100, minHeight: 680)
+                .frame(minWidth: 800, minHeight: 540)
                 .preferredColorScheme(currentAppearance.colorScheme)
                 .id(appLanguage)
                 .task { await store.loadPersisted() }
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: false))
+        // Stop the window shrinking below the content's `minWidth/minHeight`.
+        // Without this the window can go narrower than 1100pt while the content
+        // refuses to, so the oversized content overflows and the left sidebar /
+        // right toggle get clipped off both edges.
+        .windowResizability(.contentMinSize)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button(L("リポジトリを追加…")) {

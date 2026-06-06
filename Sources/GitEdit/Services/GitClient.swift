@@ -1,5 +1,13 @@
 import Foundation
 
+/// Mutable holder so a background pipe-reader can hand its result back to the
+/// termination handler without tripping Swift's concurrent `var`-capture check.
+/// Safety: each box is written by exactly one reader, then read only after the
+/// DispatchGroup join (a happens-before barrier).
+private final class DataBox: @unchecked Sendable {
+    var data = Data()
+}
+
 final class GitClient: @unchecked Sendable {
     enum GitError: LocalizedError {
         case commandFailed(status: Int32, stderr: String, command: [String])
@@ -48,6 +56,14 @@ final class GitClient: @unchecked Sendable {
             var env = ProcessInfo.processInfo.environment
             env["LC_ALL"] = "C.UTF-8"
             env["GIT_TERMINAL_PROMPT"] = "0"
+            // Skip git's "optional" locks so read commands like `status`/`diff`
+            // never rewrite `.git/index` to refresh its stat cache. That rewrite
+            // is what made our FSEvents watcher loop forever (status → index
+            // rewrite → FSEvent → status …), and it also fought the user's own
+            // terminal git over `index.lock`. Required locks (commit, add,
+            // checkout) are unaffected — this only disables the optional ones.
+            // Matches GitHub Desktop's behaviour.
+            env["GIT_OPTIONAL_LOCKS"] = "0"
             // Allow askpass / SSH agent to work but suppress interactive prompts.
             process.environment = env
 
@@ -56,11 +72,29 @@ final class GitClient: @unchecked Sendable {
             process.standardOutput = stdout
             process.standardError = stderr
 
+            // Drain both pipes on background threads *while* git runs. Reading
+            // only in terminationHandler deadlocks once output exceeds the OS
+            // pipe buffer (~64KB): git blocks writing, never exits, and the
+            // handler never fires. Affects large diffs, clone, fetch/push.
+            let group = DispatchGroup()
+            let queue = DispatchQueue(label: "GitClient.pipe", attributes: .concurrent)
+            let outBox = DataBox()
+            let errBox = DataBox()
+            group.enter()
+            queue.async {
+                outBox.data = stdout.fileHandleForReading.readDataToEndOfFile()
+                group.leave()
+            }
+            group.enter()
+            queue.async {
+                errBox.data = stderr.fileHandleForReading.readDataToEndOfFile()
+                group.leave()
+            }
+
             process.terminationHandler = { proc in
-                let outData = stdout.fileHandleForReading.readDataToEndOfFile()
-                let errData = stderr.fileHandleForReading.readDataToEndOfFile()
-                let outStr = String(data: outData, encoding: .utf8) ?? ""
-                let errStr = String(data: errData, encoding: .utf8) ?? ""
+                group.wait() // ensure both pipes are fully drained
+                let outStr = String(data: outBox.data, encoding: .utf8) ?? ""
+                let errStr = String(data: errBox.data, encoding: .utf8) ?? ""
 
                 if proc.terminationStatus == 0 {
                     cont.resume(returning: outStr)
@@ -182,7 +216,7 @@ final class GitClient: @unchecked Sendable {
         }
         if wasStaged {
             // Best-effort: clear the now-dangling index entry.
-            try? await run("restore", "--staged", "--", path)
+            _ = try? await run("restore", "--staged", "--", path)
         }
     }
 
@@ -195,7 +229,17 @@ final class GitClient: @unchecked Sendable {
     // MARK: - Diff
 
     func diffAgainstHEAD(path: String) async throws -> String {
-        try await run("diff", "HEAD", "--no-color", "--", path)
+        // Before the first commit there is no HEAD, so `git diff HEAD` fails
+        // with `fatal: bad revision 'HEAD'`. Fall back to diffing against the
+        // empty tree so a staged-but-never-committed file still shows as added.
+        let base: String
+        if (try? await run("rev-parse", "--verify", "--quiet", "HEAD")) != nil {
+            base = "HEAD"
+        } else {
+            base = try await run("hash-object", "-t", "tree", "/dev/null")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return try await run("diff", base, "--no-color", "--", path)
     }
 
     func readFileFromWorkTree(path: String) -> String? {

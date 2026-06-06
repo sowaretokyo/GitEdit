@@ -38,10 +38,10 @@ struct RepositoryView: View {
     var body: some View {
         HSplitView {
             sidebar
-                .frame(minWidth: 320, idealWidth: 360, maxWidth: 480)
+                .frame(minWidth: 240, idealWidth: 300, maxWidth: 420)
 
             detail
-                .frame(minWidth: 480)
+                .frame(minWidth: 380)
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .task {

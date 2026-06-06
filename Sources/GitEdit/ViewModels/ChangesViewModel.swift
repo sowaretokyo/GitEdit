@@ -198,7 +198,6 @@ final class ChangesViewModel: ObservableObject {
             try git.writeFile(path: change.path, content: editorFileContent)
             // If this file is already staged, re-stage it so the commit captures
             // the just-saved content instead of the stale index snapshot.
-			 // コメント追加
             if change.willBeCommitted {
                 try await git.stage(path: change.path)
             }
@@ -229,6 +228,9 @@ final class ChangesViewModel: ObservableObject {
 
     // MARK: - Staging
 
+    /// Anchor row for shift-range toggles: the last row whose checkbox was operated.
+    private var lastToggledPath: String?
+
     func toggleInclusion(of change: FileChange) async {
         do {
             if change.willBeCommitted {
@@ -240,6 +242,38 @@ final class ChangesViewModel: ObservableObject {
         } catch {
             lastError = error.localizedDescription
         }
+        lastToggledPath = change.path
+    }
+
+    /// Toggle a single row, or — when `extendingRange` is set and a previous anchor
+    /// exists — the whole inclusive range between the anchor and `change`, matching
+    /// the clicked row's new state. `visible` should be the on-screen (filtered) list
+    /// so the range follows what the user actually sees.
+    func toggleInclusion(of change: FileChange, extendingRange: Bool, in visible: [FileChange]) async {
+        guard extendingRange,
+              let anchor = lastToggledPath,
+              let a = visible.firstIndex(where: { $0.path == anchor }),
+              let b = visible.firstIndex(where: { $0.path == change.path }),
+              a != b
+        else {
+            await toggleInclusion(of: change)
+            return
+        }
+        let target = !change.willBeCommitted
+        let slice = visible[min(a, b)...max(a, b)]
+        do {
+            for file in slice where !file.isIgnored && file.willBeCommitted != target {
+                if target {
+                    try await git.stage(path: file.path)
+                } else {
+                    try await git.unstage(path: file.path)
+                }
+            }
+            await refreshStatus()
+        } catch {
+            lastError = error.localizedDescription
+        }
+        lastToggledPath = change.path
     }
 
     func toggleAll() async {

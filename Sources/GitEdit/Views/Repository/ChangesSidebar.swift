@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Left sidebar contents for the Changes tab.
 /// Composes a filter, the changed-file list (with per-file checkboxes), and
@@ -91,7 +92,17 @@ struct ChangesSidebar: View {
                             change: change,
                             isSelected: viewModel.selectedPath == change.path,
                             onToggle: {
-                                Task { await viewModel.toggleInclusion(of: change) }
+                                // Read the modifier state synchronously at click time;
+                                // shift extends the range from the last-toggled anchor.
+                                let extend = NSEvent.modifierFlags.contains(.shift)
+                                let visible = filteredChanges
+                                Task {
+                                    await viewModel.toggleInclusion(
+                                        of: change,
+                                        extendingRange: extend,
+                                        in: visible
+                                    )
+                                }
                             }
                         )
                         .onTapGesture {

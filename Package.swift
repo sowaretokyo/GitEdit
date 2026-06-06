@@ -16,6 +16,11 @@ let package = Package(
             resources: [
                 .process("Resources")
             ]
+        ),
+        .testTarget(
+            name: "GitEditTests",
+            dependencies: ["GitEdit"],
+            path: "Tests/GitEditTests"
         )
     ]
 )

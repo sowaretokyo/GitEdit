@@ -8,7 +8,7 @@ struct InitSheet: View {
     @State private var folder: URL?
     @State private var initialBranch: String = "main"
     @State private var isInitializing: Bool = false
-    @State private var error: String?
+    @State private var error: GitOperationError?
 
     private var canInit: Bool { folder != nil && !isInitializing && !initialBranch.isEmpty }
 
@@ -37,16 +37,7 @@ struct InitSheet: View {
             }
 
             if let error {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(Color(nsColor: .systemRed))
-                    .padding(.horizontal, DT.Space.sm)
-                    .padding(.vertical, DT.Space.xs)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color(nsColor: .systemRed).opacity(0.1))
-                    )
+                InlineErrorView(error: error)
             }
 
             Spacer(minLength: 0)
@@ -121,7 +112,7 @@ struct InitSheet: View {
             await store.addRepository(at: folder)
             isPresented = false
         } catch {
-            self.error = L("初期化に失敗: %@", error.localizedDescription)
+            self.error = GitErrorClassifier.classify(error, operation: .initRepo)
         }
     }
 }

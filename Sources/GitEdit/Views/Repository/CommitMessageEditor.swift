@@ -61,14 +61,13 @@ struct CommitMessageEditor: View {
     }
 
     private var summaryField: some View {
-        HistoryAwareTextEditor(
+        HistoryAwareTextField(
             text: $viewModel.commitMessage,
             history: viewModel.commitHistory,
             placeholder: L("Summary（必須）")
         )
-        .frame(height: 30)
         .padding(.horizontal, DT.Space.sm)
-        .padding(.vertical, 5)
+        .frame(height: 32)
         .background(
             RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
                 .fill(Color(nsColor: .textBackgroundColor))

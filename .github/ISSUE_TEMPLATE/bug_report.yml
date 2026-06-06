@@ -1,0 +1,71 @@
+name: バグ報告
+description: 動作がおかしい / クラッシュする / 期待と違う挙動
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        報告ありがとうございます。再現手順がはっきりしているほど直しやすいので、
+        分かる範囲で書いてください。
+
+  - type: textarea
+    id: what-happens
+    attributes:
+      label: 何が起きていますか？
+      description: 現在の挙動を簡潔に。
+      placeholder: 例）コミット履歴を開くと、リモートブランチが 1 件しか表示されない
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 何が起きるべきですか？
+      placeholder: 例）すべてのリモートブランチが表示されるはず
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      description: コピペで再現できる粒度が理想です。
+      placeholder: |
+        1. 〇〇 リポジトリを開く
+        2. 履歴タブを選択
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: gitedit-version
+    attributes:
+      label: GitEdit のバージョン
+      description: メニューバー → GitEdit → About、または `git log` の最新コミット
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS のバージョン
+      placeholder: "14.5 (Sonoma)"
+    validations:
+      required: true
+
+  - type: input
+    id: git-version
+    attributes:
+      label: git のバージョン
+      description: ターミナルで `git --version` の出力
+      placeholder: "git version 2.45.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: エラーメッセージ / ログ（任意）
+      description: Console.app の "GitEdit" プロセスのログがあれば貼ってください
+      render: shell

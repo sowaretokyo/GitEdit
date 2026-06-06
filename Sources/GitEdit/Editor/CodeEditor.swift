@@ -1,27 +1,23 @@
 import SwiftUI
 import AppKit
 
-/// A SwiftUI wrapper around an editable `NSTextView` with monospaced font,
-/// undo support, line-number gutter, and per-line background highlights.
+/// SwiftUI wrapper around an editable `NSTextView`, with monospaced font,
+/// undo, line-number gutter and per-line background highlights.
 ///
-/// Built on top of Apple's `NSTextView.scrollableTextView()` factory so the
-/// scroll view, clip view, text container, layout manager, and text storage
-/// are all wired up by AppKit itself (avoiding subtle bugs from manual setup).
 struct CodeEditor: NSViewRepresentable {
     @Binding var text: String
     let highlightedLines: Set<Int>
     let isEditable: Bool
     let onSave: () -> Void
 
-    private static let editorFont: NSFont = .monospacedSystemFont(ofSize: 12.5, weight: .regular)
+    private static let editorFont: NSFont = .monospacedSystemFont(ofSize: 13, weight: .regular)
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeNSView(context: Context) -> NSScrollView {
-        // Canonical factory — guarantees the layout pipeline is correct.
         let scrollView = NSTextView.scrollableTextView()
         scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = true
+        scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = false
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = true
@@ -31,57 +27,28 @@ struct CodeEditor: NSViewRepresentable {
             return scrollView
         }
 
-        // Code-editor-friendly text container: no soft wrap, scroll horizontally.
-        textView.isHorizontallyResizable = true
-        textView.maxSize = NSSize(
-            width: CGFloat.greatestFiniteMagnitude,
-            height: CGFloat.greatestFiniteMagnitude
-        )
-        if let container = textView.textContainer {
-            container.widthTracksTextView = false
-            container.containerSize = NSSize(
-                width: CGFloat.greatestFiniteMagnitude,
-                height: CGFloat.greatestFiniteMagnitude
-            )
-            container.lineFragmentPadding = 6
-        }
-
-        // Make sure the text view always has a defined font + color.
-        textView.font = Self.editorFont
-        textView.textColor = .textColor
-        textView.backgroundColor = .textBackgroundColor
-        textView.drawsBackground = true
-        textView.insertionPointColor = .controlAccentColor
-        textView.isRichText = false
-        textView.allowsUndo = true
-        textView.isAutomaticQuoteSubstitutionEnabled = false
-        textView.isAutomaticDashSubstitutionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = false
-        textView.isAutomaticSpellingCorrectionEnabled = false
-        textView.smartInsertDeleteEnabled = false
-        textView.isContinuousSpellCheckingEnabled = false
-        textView.isAutomaticLinkDetectionEnabled = false
-        textView.isAutomaticDataDetectionEnabled = false
-        textView.usesFindBar = true
-        textView.isIncrementalSearchingEnabled = true
-        textView.textContainerInset = NSSize(width: 0, height: 8)
+        configureTextView(textView)
+        // Delegate + editability must be wired here (configureTextView has no
+        // access to the context). Without the delegate, `textDidChange` never
+        // fires and edits never propagate back to the binding.
         textView.delegate = context.coordinator
         textView.isEditable = isEditable
 
-        // Initial content with explicit attributes.
-        setText(text, on: textView)
-
-        // Line-number ruler.
+        // Set up the ruler BEFORE the initial text — adding the ruler later
+        // shrinks the textView's clip area and the previously-laid-out glyphs
+        // never get re-drawn, leaving the body invisible.
         scrollView.hasVerticalRuler = true
         scrollView.rulersVisible = true
         let ruler = LineNumberRulerView(textView: textView)
         scrollView.verticalRulerView = ruler
 
+        // Initial content with explicit color in storage.
+        applyText(text, to: textView)
+
         context.coordinator.textView = textView
         context.coordinator.ruler = ruler
         context.coordinator.installSaveMonitor()
         applyHighlights(to: textView, lines: highlightedLines)
-
         return scrollView
     }
 
@@ -91,7 +58,7 @@ struct CodeEditor: NSViewRepresentable {
 
         if textView.string != text {
             let oldRange = textView.selectedRange()
-            setText(text, on: textView)
+            applyText(text, to: textView)
             let length = (text as NSString).length
             let clamped = NSRange(
                 location: min(oldRange.location, length),
@@ -110,23 +77,59 @@ struct CodeEditor: NSViewRepresentable {
         coordinator.removeSaveMonitor()
     }
 
-    /// Replace the text storage with an attributed string that carries
-    /// explicit font + color attributes so the rendered text is always visible.
-    private func setText(_ string: String, on textView: NSTextView) {
+    // MARK: - Setup helpers
+
+    private func configureTextView(_ textView: NSTextView) {
+        textView.font = Self.editorFont
+        textView.textColor = .textColor
+        textView.backgroundColor = .textBackgroundColor
+        textView.drawsBackground = true
+        textView.usesAdaptiveColorMappingForDarkAppearance = true
+        textView.insertionPointColor = .controlAccentColor
+        textView.isRichText = false
+        textView.allowsUndo = true
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isAutomaticSpellingCorrectionEnabled = false
+        textView.smartInsertDeleteEnabled = false
+        textView.isContinuousSpellCheckingEnabled = false
+        textView.isAutomaticLinkDetectionEnabled = false
+        textView.isAutomaticDataDetectionEnabled = false
+        textView.usesFindBar = true
+        textView.isIncrementalSearchingEnabled = true
+        textView.textContainerInset = NSSize(width: 6, height: 8)
+        // Standard wrap-to-width layout — the textContainer width tracks the
+        // text view and the text view's width tracks the scroll view's clip.
+        // This is what `scrollableTextView()` gives us by default; we just
+        // make sure nothing later overrides it.
+        if let container = textView.textContainer {
+            container.widthTracksTextView = true
+            container.lineFragmentPadding = 4
+        }
+    }
+
+    private func applyText(_ string: String, to textView: NSTextView) {
         let attrs: [NSAttributedString.Key: Any] = [
             .font: Self.editorFont,
             .foregroundColor: NSColor.textColor
         ]
-        if let storage = textView.textStorage {
-            let attributed = NSAttributedString(string: string, attributes: attrs)
-            storage.beginEditing()
-            storage.setAttributedString(attributed)
-            storage.endEditing()
-        } else {
+        guard let storage = textView.textStorage else {
             textView.string = string
+            return
         }
+        let attributed = NSAttributedString(string: string, attributes: attrs)
+        storage.beginEditing()
+        storage.setAttributedString(attributed)
+        storage.endEditing()
         textView.typingAttributes = attrs
-        textView.layoutManager?.ensureLayout(for: textView.textContainer ?? NSTextContainer())
+        // Force the layout manager to re-lay out and the view to redraw,
+        // otherwise glyphs from an earlier (possibly empty) state can be
+        // cached invisibly.
+        if let layout = textView.layoutManager, let container = textView.textContainer {
+            layout.invalidateDisplay(forCharacterRange: NSRange(location: 0, length: attributed.length))
+            layout.ensureLayout(for: container)
+        }
         textView.needsDisplay = true
     }
 

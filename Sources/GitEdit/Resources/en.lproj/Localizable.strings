@@ -92,6 +92,28 @@
 "Description" = "Description";
 "%d 件を %@ にコミット" = "Commit %d files to %@";
 
+/* ===== File picker ===== */
+"ファイルパスで絞り込み" = "Filter by file path";
+"ファイル名を入力" = "Type a file name";
+"ファイルが見つかりません" = "No files found";
+
+/* ===== Global search ===== */
+"検索" = "Search";
+"文字列を検索" = "Search text";
+"結果なし" = "No results";
+"%d 件 / %d ファイル" = "%d matches in %d files";
+"検索したい文字列を入力してください" = "Type something to search for";
+"一致する結果がありません" = "No matches";
+"左で検索結果をクリックすると詳細が表示されます" = "Click a search result on the left to see details";
+"ファイルが空です" = "File is empty";
+"ファイルの読み込みに失敗: %@" = "Failed to load file: %@";
+
+/* ===== Explorer ===== */
+"エクスプローラ" = "Explorer";
+"ファイルがありません" = "No files";
+"更新" = "Refresh";
+"左でファイルをクリックすると内容が表示されます" = "Click a file on the left to see its content";
+
 /* ===== Editor ===== */
 "編集" = "Edit";
 "保存" = "Save";
@@ -145,8 +167,8 @@
 "プルが完了しました" = "Pull complete";
 "プッシュが完了しました" = "Push complete";
 "ブランチをプッシュしました" = "Branch pushed";
-"未公開のブランチ" = "Unpublished branch";
-"このブランチはリモートに公開されていません" = "This branch hasn't been published yet";
+"未プッシュのブランチ" = "Unpushed branch";
+"このブランチはまだプッシュされていません" = "This branch hasn't been pushed yet";
 "コマンドの実行に失敗しました" = "Command failed";
 
 /* ===== Create branch ===== */
@@ -201,15 +223,109 @@
 /* ===== Errors with parameters ===== */
 "%@ は Git リポジトリではありません" = "%@ is not a Git repository";
 "差分の取得に失敗: %@" = "Failed to load diff: %@";
-"クローンに失敗: %@" = "Clone failed: %@";
-"初期化に失敗: %@" = "Init failed: %@";
-"切替に失敗: %@" = "Switch failed: %@";
-"作成に失敗: %@" = "Create failed: %@";
-"フェッチに失敗: %@" = "Fetch failed: %@";
-"プルに失敗: %@" = "Pull failed: %@";
-"プッシュに失敗: %@" = "Push failed: %@";
-"マージに失敗: %@" = "Merge failed: %@";
-"削除に失敗: %@" = "Delete failed: %@";
 
 /* ===== About ===== */
 "GitEdit" = "GitEdit";
+
+/* ===== Error handling — Operation labels ===== */
+"プッシュに失敗しました" = "Push failed";
+"プルに失敗しました" = "Pull failed";
+"フェッチに失敗しました" = "Fetch failed";
+"マージに失敗しました" = "Merge failed";
+"コミットに失敗しました" = "Commit failed";
+"ステージに失敗しました" = "Staging failed";
+"アンステージに失敗しました" = "Unstaging failed";
+"ブランチ切替に失敗しました" = "Branch switch failed";
+"ブランチ作成に失敗しました" = "Branch creation failed";
+"ブランチ削除に失敗しました" = "Branch deletion failed";
+"クローンに失敗しました" = "Clone failed";
+"リポジトリ初期化に失敗しました" = "Repository init failed";
+"操作に失敗しました" = "Operation failed";
+"ステータス取得" = "Status fetch";
+"ファイル保存" = "Save file";
+
+/* ===== Error handling — UI chrome ===== */
+"詳細を表示" = "Show details";
+"提案された対処" = "Suggested next steps";
+"技術的な詳細" = "Technical details";
+"実行コマンド" = "Command run";
+"git からのメッセージ" = "Message from git";
+"git からのメッセージを表示" = "Show message from git";
+"（メッセージなし）" = "(no message)";
+"詳細をコピー" = "Copy details";
+"コピーしました" = "Copied";
+"閉じる" = "Close";
+"もう一度試す" = "Try again";
+
+/* ===== Error handling — Titles ===== */
+"リモートに新しいコミットがあります" = "The remote has new commits";
+"マージコンフリクトが発生しました" = "Merge conflict";
+"未コミットの変更で上書きされてしまいます" = "Uncommitted changes would be overwritten";
+"未追跡ファイルで上書きされてしまいます" = "Untracked files would be overwritten";
+"追跡先ブランチが設定されていません" = "No upstream branch set";
+"認証に失敗しました" = "Authentication failed";
+"ネットワークに接続できません" = "Can't reach the network";
+"関連のない履歴をマージしようとしています" = "Trying to merge unrelated histories";
+"リモートサーバーに拒否されました" = "Rejected by the remote server";
+"保護されたブランチにはプッシュできません" = "Can't push to a protected branch";
+"コミット作者情報が未設定です" = "Commit author identity is not set";
+"コミットできる変更がありません" = "Nothing is staged to commit";
+"同名のブランチがすでに存在します" = "A branch with that name already exists";
+"ブランチが完全にマージされていません" = "The branch is not fully merged";
+"チェックアウト中のブランチは削除できません" = "Can't delete a branch that's checked out";
+"別の git プロセスが実行中の可能性があります" = "Another git process may be running";
+"プッシュ対象のブランチが見つかりません" = "Can't find the branch to push";
+"浅いクローンからはプッシュできません" = "Can't push from a shallow clone";
+"デタッチド HEAD 状態です" = "HEAD is detached";
+"SSH ホスト鍵を検証できませんでした" = "Couldn't verify the SSH host key";
+"マージが進行中です" = "A merge is in progress";
+"ローカルとリモートの履歴が分岐しています" = "Local and remote histories have diverged";
+"リポジトリにアクセスできません" = "Can't access the repository";
+
+/* ===== Error handling — Summaries ===== */
+"ローカルにない変更がリモートにあるため、このままではプッシュできません。先にプルしてリモートの変更を取り込んでください。" = "The remote has changes you don't have locally, so this push would lose them. Pull first to bring in the new commits.";
+"ローカルとリモートで同じ箇所が編集されているため、自動でマージできませんでした。各ファイルの競合マーカー（<<<<<<<）を解消してからコミットしてください。" = "The same lines were edited on both sides, so git couldn't merge automatically. Resolve the conflict markers (<<<<<<<) in each file, then commit.";
+"作業ツリーに未コミットの変更があるため、この操作を続行すると変更が失われてしまいます。先にコミットするか退避（stash）してください。" = "Your working tree has uncommitted changes that would be lost if this continued. Commit them or stash them first.";
+"操作対象のブランチに、ローカルにある未追跡ファイルと同じパスのファイルが存在します。先にローカルのファイルを退避するか削除してから再度お試しください。" = "The target branch has files at the same path as your untracked local files. Move or remove them locally, then try again.";
+"このブランチはまだリモートに紐付いていません。初回プッシュで追跡先を設定します。" = "This branch isn't tracking a remote yet. The first push will set the upstream for you.";
+"リモートに対する認証が拒否されました。GitHub のトークンが期限切れ・権限不足、または SSH 鍵が登録されていない可能性があります。" = "The remote refused your credentials. Your GitHub token may be expired or under-scoped, or your SSH key may not be registered.";
+"リモートサーバーに到達できませんでした。インターネット接続・VPN・プロキシ設定を確認してください。" = "Couldn't reach the remote server. Check your internet connection, VPN, and proxy settings.";
+"ローカルとリモートに共通の祖先がありません。意図的にマージしたい場合は、コマンドラインで `git pull --allow-unrelated-histories` を実行してください。" = "Local and remote share no common history. If you really want to merge them, run `git pull --allow-unrelated-histories` from the command line.";
+"プッシュがリモート側で拒否されました。サーバー側のフック（pre-receive など）またはポリシーで止められている可能性があります。詳細を確認してください。" = "The remote rejected your push. A server-side hook (like pre-receive) or policy is likely blocking it — check the details.";
+"リモート側でこのブランチが保護されており、直接プッシュできません。プルリクエストを作成するか、別ブランチにプッシュしてください。" = "This branch is protected on the remote, so direct pushes are blocked. Open a pull request or push to a different branch instead.";
+"`user.name` と `user.email` が設定されていないため、コミットを作成できません。Git のグローバル設定を行ってください。" = "Git can't create commits without `user.name` and `user.email`. Set them in your global git config.";
+"ステージされたファイルがないため、コミットを作成できません。変更タブでファイルにチェックを入れてからもう一度お試しください。" = "Nothing is staged, so there's nothing to commit. Tick the files you want to include in the Changes tab and try again.";
+"同じ名前のブランチがローカルに存在するため、新規作成できませんでした。別の名前を指定してください。" = "A local branch with that name already exists. Use a different name.";
+"このブランチにはまだマージされていないコミットがあるため、通常の削除は拒否されました。意図的に削除する場合は強制削除を選んでください。" = "This branch has commits that haven't been merged yet, so a regular delete was refused. Choose force-delete if you really want to drop them.";
+"削除しようとしているブランチは現在チェックアウトされています。別のブランチに切り替えてから削除してください。" = "The branch you're trying to delete is currently checked out. Switch to another branch first.";
+"リポジトリの `index.lock` が残っているため、新しい操作を開始できません。他の Git ツールが動いていないか確認し、少し待ってから再試行してください。" = "An `index.lock` is sitting in the repository, so new commands won't start. Make sure no other Git tool is running, wait a moment, then retry.";
+"指定したブランチがローカルに存在しないため、プッシュできませんでした。一度ブランチを作成・コミットしてから再試行してください。" = "The branch you asked to push doesn't exist locally. Create it and add a commit, then try again.";
+"このリポジトリは shallow clone のため、リモートが受け入れない更新が含まれています。`git fetch --unshallow` で完全な履歴を取得してから再試行してください。" = "This repository is a shallow clone, so the update contains commits the remote won't accept. Run `git fetch --unshallow` to fetch the full history first.";
+"現在どのブランチにもいません。先にブランチを作成または切り替えてから操作してください。" = "You're not on any branch right now. Create or switch to a branch first.";
+"リモートホストの SSH 鍵が `known_hosts` に登録されていないか、変更されています。一度ターミナルから接続して鍵を受け入れてください。" = "The remote host's SSH key isn't in `known_hosts`, or it has changed. Connect once from the terminal to accept the key.";
+"前回のマージがまだ完了していません。競合を解消してコミットするか、マージを中止してから再操作してください。" = "A previous merge hasn't finished yet. Resolve the conflicts and commit, or abort the merge before retrying.";
+"Fast-forward でプルできません。ローカルにリモートにないコミットがあるため、マージかリベースが必要です。" = "Pull can't fast-forward — you have local commits the remote doesn't. You'll need to merge or rebase.";
+"リモートリポジトリが見つからないか、アクセス権がありません。URL とアクセス権限を確認してください。" = "Couldn't find the remote repository, or you don't have access. Double-check the URL and your permissions.";
+"詳細はログをご確認ください。" = "Please check the log for details.";
+
+/* ===== Error handling — Suggestion labels ===== */
+"プルして取り込む" = "Pull to integrate";
+"フェッチして差分を確認" = "Fetch and review";
+"変更タブで競合ファイルを確認" = "Open Changes to resolve conflicts";
+"競合解決のヘルプを開く" = "Open conflict-resolution help";
+"変更タブを開いてコミット" = "Open Changes and commit";
+"追跡先を設定してプッシュ" = "Set upstream and push";
+"アカウント設定を開く" = "Open account settings";
+"認証のヘルプを開く" = "Open authentication help";
+"フェッチして状況を確認" = "Fetch and inspect";
+"変更タブを開く" = "Open Changes";
+"設定方法を表示" = "Show how to fix";
+
+/* ===== Error handling — Suggestion details ===== */
+"最新のリモートを取得してから再度プッシュします。" = "Pulls the latest remote, then you can push again.";
+"マージはせずに、まずリモートの状態を取得して確認します。" = "Fetches the remote without merging so you can inspect it first.";
+"競合しているファイルを編集して、問題のある行を修正します。" = "Edit the conflicting files and fix the problem lines.";
+"作業中の変更をコミットしてから操作をやり直します。" = "Commit your in-progress work, then retry the operation.";
+"origin に同名ブランチを作成し、以降のプッシュ／プルで自動的に追跡されるようにします。" = "Creates a same-named branch on origin so future pushes/pulls track it automatically.";
+"GitHub に再サインインして、有効なトークンを発行し直します。" = "Sign back into GitHub and issue a fresh token.";
+"ターミナルで以下を実行: git config --global user.name \"Your Name\" / git config --global user.email \"you@example.com\"" = "In Terminal: git config --global user.name \"Your Name\" / git config --global user.email \"you@example.com\"";

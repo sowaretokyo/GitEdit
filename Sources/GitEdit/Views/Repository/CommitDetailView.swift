@@ -38,13 +38,12 @@ struct CommitDetailView: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: DT.Space.lg) {
-                Label {
-                    Text(commit.author)
-                } icon: {
-                    Image(systemName: "person.crop.circle.fill")
-                        .foregroundStyle(.tint)
-                }
+            HStack(alignment: .center, spacing: DT.Space.md) {
+                AvatarStack(authors: commit.allAuthors, size: 24, overlap: 12)
+                Text(commit.allAuthorDisplayNames)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .textSelection(.enabled)
                 Label {
                     Text(Self.absoluteFormatter.string(from: commit.date))
                 } icon: {
@@ -64,8 +63,8 @@ struct CommitDetailView: View {
             .font(.callout)
             .foregroundStyle(.secondary)
 
-            if !commit.body.isEmpty {
-                Text(commit.body)
+            if !displayBody.isEmpty {
+                Text(displayBody)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
@@ -75,6 +74,27 @@ struct CommitDetailView: View {
         .padding(DT.Space.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    /// Commit body with the leading summary line and any `Co-Authored-By:`
+    /// trailers stripped — the summary is already shown above, and the
+    /// co-authors are reflected in the avatar stack and name list.
+    private var displayBody: String {
+        let lines = commit.body.split(separator: "\n", omittingEmptySubsequences: false)
+        guard !lines.isEmpty else { return "" }
+        // Drop the subject line (and the blank line after it, if present)
+        // since CommitDetailView already shows the summary at the top.
+        var iter = lines.dropFirst()
+        if iter.first?.trimmingCharacters(in: .whitespaces).isEmpty == true {
+            iter = iter.dropFirst()
+        }
+        let kept = iter.filter { line in
+            line.range(
+                of: #"^\s*Co-Authored-By:"#,
+                options: [.regularExpression, .caseInsensitive]
+            ) == nil
+        }
+        return kept.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - File list

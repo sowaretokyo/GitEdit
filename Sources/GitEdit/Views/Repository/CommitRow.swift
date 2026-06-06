@@ -11,35 +11,9 @@ struct CommitRow: View {
         return f
     }()
 
-    private var initials: String {
-        let parts = commit.author.split(separator: " ")
-        if parts.count >= 2 {
-            return String(parts[0].prefix(1) + parts[1].prefix(1)).uppercased()
-        }
-        return String(commit.author.prefix(1)).uppercased()
-    }
-
-    private var avatarHue: Double {
-        let hash = abs(commit.authorEmail.hashValue)
-        return Double(hash % 360) / 360.0
-    }
-
-    private var avatarURL: URL? {
-        GitHubAvatar.url(for: commit.authorEmail, size: 80)
-    }
-
-    private var tintColor: Color {
-        Color(hue: avatarHue, saturation: 0.55, brightness: 0.7)
-    }
-
     var body: some View {
         HStack(spacing: DT.Space.md) {
-            AvatarImageView(
-                url: avatarURL,
-                initials: initials,
-                tintColor: tintColor,
-                size: 30
-            )
+            AvatarStack(authors: commit.allAuthors, size: 30)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(commit.summary)
@@ -48,8 +22,9 @@ struct CommitRow: View {
                     .truncationMode(.tail)
 
                 HStack(spacing: 6) {
-                    Text(commit.author)
+                    Text(commit.allAuthorDisplayNames)
                         .lineLimit(1)
+                        .truncationMode(.tail)
                     Text("•").foregroundStyle(.tertiary)
                     Text(Self.relativeFormatter.localizedString(for: commit.date, relativeTo: Date()))
                     Text("•").foregroundStyle(.tertiary)
@@ -70,6 +45,6 @@ struct CommitRow: View {
                     .help(L("未pushのコミット"))
             }
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, DT.RowDensity.tight)
     }
 }

@@ -92,20 +92,11 @@ struct ChangesDetailPane: View {
     }
 
     private var pickFilePrompt: some View {
-        VStack(spacing: DT.Space.sm) {
-            Spacer()
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(L("左のリストからファイルを選択"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Text(L("差分がここに表示されます"))
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        EmptyStateView(
+            icon: "doc.text.magnifyingglass",
+            title: L("左のリストからファイルを選択"),
+            subtitle: L("差分がここに表示されます"),
+            background: Color(nsColor: .windowBackgroundColor)
+        )
     }
 }

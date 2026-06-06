@@ -36,11 +36,10 @@ struct DiffEditView: View {
             Spacer()
 
             if let change = viewModel.selectedChange, viewModel.selectedFileIsEditable {
-                modePicker
-
                 if viewModel.editorViewMode == .edit {
                     saveButton(change: change)
                 }
+                modePicker
             }
         }
         .padding(.horizontal, DT.Space.md)
@@ -120,6 +119,9 @@ struct DiffEditView: View {
                 Task { await viewModel.saveEditorContent() }
             }
         )
+        // Without this the NSScrollView's intrinsic size becomes zero on the
+        // first SwiftUI layout pass and the text never appears.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder

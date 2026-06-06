@@ -11,7 +11,16 @@ enum DT {
         static let xxxl: CGFloat = 48
     }
 
+    /// Vertical paddings for list rows. Calibrated to match macOS table
+    /// densities — pick `tight` for header / metadata rows and `regular`
+    /// for tappable content rows.
+    enum RowDensity {
+        static let tight: CGFloat = 3
+        static let regular: CGFloat = 5
+    }
+
     enum Radius {
+        static let xs: CGFloat = 4
         static let sm: CGFloat = 6
         static let md: CGFloat = 10
         static let lg: CGFloat = 14

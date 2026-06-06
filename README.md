@@ -1,78 +1,45 @@
 # GitEdit
 
+[![CI](https://github.com/sowaretokyo/GitEdit/actions/workflows/ci.yml/badge.svg)](https://github.com/sowaretokyo/GitEdit/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/sowaretokyo/GitEdit?display_name=tag)](https://github.com/sowaretokyo/GitEdit/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+
 GitHub Desktop の哲学を受け継ぐ、macOS ネイティブの Git GUI クライアント。
 
-> 「ほどよく出来ることを制限して、変なことが起きないように」をそのままに、Apple らしい使い心地で。
+## ダウンロード
+
+**👉 [GitEdit.dmg をダウンロード](https://github.com/sowaretokyo/GitEdit/releases/latest/download/GitEdit.dmg)**（macOS 14+ / Universal）
 
 ## 特徴
 
-- **SwiftUI + AppKit ネイティブ** — 軽量、瞬間起動、Mac らしい操作感
-- **完全日本語 UI**
-- **コミットメッセージ ↑↓ 履歴** — 過去のコミットメッセージを呼び出し
-- **個別ステージング** — ファイル単位でチェックして選択的にコミット
-- **差分ビューア** — 色分けされた unified diff
-- **コミット履歴** — 相対日付・著者イニシャル付きリスト
-- **初心者向けガードレール** — force push, interactive rebase 等は隠す or 明示警告
-
-## 必要環境
-
-- macOS 14 (Sonoma) 以降
-- Xcode 15 以降
-- システムに `git`（macOS Command Line Tools で入る）
+- SwiftUI + AppKit ネイティブで軽量・瞬間起動
+- 完全日本語 UI
+- 個別ステージング・差分ビューア・その場編集
+- コミット履歴 / `git grep` ベース全文検索 / ファイルエクスプローラ
+- 初心者向けガードレール（force push 等は隠す）
 
 ## 開発
 
 ```bash
-# Xcode で開く（推奨）
-open Package.swift
-
-# ターミナルで
-swift build
-swift run
+open Package.swift   # Xcode で開く
+swift run            # 起動
+swift test           # テスト
 ```
 
-## 構成
+## リリース
 
-```
-Sources/GitEdit/
-├── GitEditApp.swift       # @main + AppDelegate
-├── Theme/                 # デザイントークン
-├── Views/                 # SwiftUI ビュー
-├── ViewModels/            # 状態管理
-├── Models/                # データモデル
-└── Services/              # git CLI ラッパー、パーサー
+```bash
+bash scripts/release.sh
 ```
 
-## 参考
+`patch / minor / major` を対話で選ぶとタグを切って push、CI が `.dmg` を [Releases](https://github.com/sowaretokyo/GitEdit/releases/latest) に上げます。
 
-- GitHub Desktop (TypeScript/Electron): https://github.com/desktop/desktop
-  - ローカルに参考用クローンあり: `../desktop/`
+## コミュニティ
 
-## ロードマップ
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — 開発・アーキ方針・CI Secrets
+- [CHANGELOG.md](./CHANGELOG.md) — 変更履歴
+- [SECURITY.md](./SECURITY.md) — 脆弱性報告
 
-### Phase 1（雛形・コミット動線）— ✅ 完了
-- [x] プロジェクト雛形
-- [x] Welcome 画面
-- [x] ローカルリポジトリ追加
-- [x] ファイル変更一覧
-- [x] コミットメッセージ ↑↓ 履歴
+## ライセンス
 
-### Phase 2（読み取り強化）— ✅ 完了
-- [x] 個別ステージ/アンステージ（チェックボックス UI）
-- [x] 差分ビューア（unified diff、色分け）
-- [x] 履歴ビュー（コミットリスト + 詳細）
-
-### Phase 3（ネットワーク・ブランチ）
-- [ ] fetch / pull / push
-- [ ] ブランチ作成・切替・マージ
-- [ ] clone / init
-
-### Phase 4（賢い UX）
-- [ ] 巨大ファイル警告
-- [ ] Conventional Commits 補助
-- [ ] .gitignore プリセット
-- [ ] conflict 解決 UI
-
-### Phase 5（拡張）
-- [ ] GitHub API 連携（PR、Issue）
-- [ ] 軽量コードエディタ（"Edit" 部分）
+[MIT](./LICENSE) — © 2026 [株式会社ソワレ東京](https://sowaretokyo.co.jp)

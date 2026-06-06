@@ -17,8 +17,8 @@ struct SidebarTabBar: View {
         return Button {
             selection = tab
         } label: {
-            Text(tab.title)
-                .font(.callout.weight(isSelected ? .semibold : .regular))
+            Image(systemName: tab.iconSystemName)
+                .font(.body.weight(isSelected ? .semibold : .regular))
                 .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
@@ -30,6 +30,7 @@ struct SidebarTabBar: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .help(tab.title)
         .animation(.easeOut(duration: 0.12), value: isSelected)
     }
 }

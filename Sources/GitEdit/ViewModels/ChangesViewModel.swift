@@ -196,6 +196,12 @@ final class ChangesViewModel: ObservableObject {
         defer { isSavingEditor = false }
         do {
             try git.writeFile(path: change.path, content: editorFileContent)
+            // If this file is already staged, re-stage it so the commit captures
+            // the just-saved content instead of the stale index snapshot.
+			 // コメント追加
+            if change.willBeCommitted {
+                try await git.stage(path: change.path)
+            }
             hasEditorUnsavedChanges = false
             // Refresh diff and re-compute highlights.
             await refreshDiffForSelection()

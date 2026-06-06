@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CommitRow: View {
     let commit: Commit
+    var isUnpushed: Bool = false
 
     private static let relativeFormatter: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
@@ -61,6 +62,13 @@ struct CommitRow: View {
             }
 
             Spacer(minLength: 0)
+
+            if isUnpushed {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.orange)
+                    .help(L("未pushのコミット"))
+            }
         }
         .padding(.vertical, 3)
     }

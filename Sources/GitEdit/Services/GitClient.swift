@@ -304,6 +304,20 @@ final class GitClient: @unchecked Sendable {
         return commits
     }
 
+    /// Full SHAs of commits reachable from HEAD but not from any remote-tracking
+    /// branch — i.e. commits that have not been pushed anywhere yet. Returns an
+    /// empty set if everything is pushed (or on error).
+    func unpushedCommitSHAs() async -> Set<String> {
+        guard let output = try? await run("rev-list", "HEAD", "--not", "--remotes") else {
+            return []
+        }
+        let shas = output
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return Set(shas)
+    }
+
     // MARK: - Branches
 
     func listLocalBranches() async throws -> [Branch] {

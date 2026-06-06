@@ -54,8 +54,11 @@ struct HistorySidebar: View {
         } else {
             List(selection: $viewModel.selectedCommitID) {
                 ForEach(viewModel.commits) { commit in
-                    CommitRow(commit: commit)
-                        .tag(commit.id)
+                    CommitRow(
+                        commit: commit,
+                        isUnpushed: viewModel.unpushedSHAs.contains(commit.id)
+                    )
+                    .tag(commit.id)
                 }
             }
             .listStyle(.inset)

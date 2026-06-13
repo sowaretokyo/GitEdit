@@ -8,4 +8,5 @@ DerivedData/
 build/
 *.dmg
 *.iconset
+sparkle_ed_private_key.txt
 Package.resolved

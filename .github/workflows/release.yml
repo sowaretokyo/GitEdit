@@ -1,7 +1,7 @@
 name: Release
 
 # タグを push すると Universal .dmg をビルド・署名・Notarize して
-# GitHub Releases に添付する。
+# GitHub Releases に添付し、Sparkle 用 appcast を gh-pages に公開する。
 #   git tag v0.1.0 && git push origin v0.1.0
 
 on:
@@ -74,11 +74,77 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: bash scripts/sign-and-notarize.sh
 
+      - name: Create versioned DMG
+        run: cp build/GitEdit.dmg "build/GitEdit-${{ steps.ver.outputs.version }}.dmg"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: GitEdit-${{ steps.ver.outputs.version }}-dmg
-          path: build/GitEdit.dmg
+          path: |
+            build/GitEdit.dmg
+            build/GitEdit-${{ steps.ver.outputs.version }}.dmg
+
+      - name: Require Sparkle private key
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          if [[ -z "${SPARKLE_ED_PRIVATE_KEY}" ]]; then
+            echo "❌ SPARKLE_ED_PRIVATE_KEY secret is required to publish Sparkle updates." >&2
+            echo "   Export it locally with:" >&2
+            echo "   .build/artifacts/sparkle/Sparkle/bin/generate_keys -x sparkle_ed_private_key.txt" >&2
+            echo "   Then add the file contents as the SPARKLE_ED_PRIVATE_KEY GitHub secret." >&2
+            exit 1
+          fi
+
+      - name: Generate Sparkle appcast
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          SPARKLE_DOWNLOAD_URL_PREFIX: https://sowaretokyo.github.io/GitEdit/
+        run: |
+          set -euo pipefail
+          SPARKLE_DIR="build/sparkle-feed"
+          rm -rf "${SPARKLE_DIR}"
+          mkdir -p "${SPARKLE_DIR}"
+
+          if git fetch origin gh-pages:refs/remotes/origin/gh-pages --depth=1; then
+            git archive origin/gh-pages | tar -x -C "${SPARKLE_DIR}"
+          fi
+
+          cp "build/GitEdit-${{ steps.ver.outputs.version }}.dmg" "${SPARKLE_DIR}/"
+          printf '%s\n' "${SPARKLE_ED_PRIVATE_KEY}" \
+            | .build/artifacts/sparkle/Sparkle/bin/generate_appcast \
+                --ed-key-file - \
+                --download-url-prefix "${SPARKLE_DOWNLOAD_URL_PREFIX}" \
+                --maximum-versions 3 \
+                "${SPARKLE_DIR}"
+
+          rm -rf "${SPARKLE_DIR}/old_updates"
+
+      - name: Publish Sparkle feed
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd build/sparkle-feed
+          git init
+          git checkout -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Update Sparkle feed for v${{ steps.ver.outputs.version }}"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin gh-pages
+
+      - name: Upload Sparkle feed artifact
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: GitEdit-${{ steps.ver.outputs.version }}-sparkle-feed
+          path: build/sparkle-feed
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -88,4 +154,6 @@ jobs:
           generate_release_notes: true
           # 配布ファイル名はバージョンに依存させない。Vercel 等から
           # releases/latest/download/GitEdit.dmg で参照できるようにするため。
-          files: build/GitEdit.dmg
+          files: |
+            build/GitEdit.dmg
+            build/GitEdit-${{ steps.ver.outputs.version }}.dmg

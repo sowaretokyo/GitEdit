@@ -3,6 +3,7 @@
 /* ===== App & menus ===== */
 "GitEdit について" = "About GitEdit";
 "リポジトリを追加…" = "Add Repository…";
+"アップデートを確認…" = "Check for Updates…";
 "設定…" = "Settings…";
 
 /* ===== Settings ===== */

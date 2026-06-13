@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>GitEdit</title>
+        <item>
+            <title>0.1.4</title>
+            <pubDate>Sat, 13 Jun 2026 07:36:05 +0000</pubDate>
+            <sparkle:version>5</sparkle:version>
+            <sparkle:shortVersionString>0.1.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://sowaretokyo.github.io/GitEdit/GitEdit-0.1.4.dmg" length="8749492" type="application/octet-stream" sparkle:edSignature="TY+Xb1c+tNr+glkq/5OxOz21zZ6UDeIcrPA2nptUIRtsB1DGIU5HrcVAwnPqOtvxmfJCSkXz3AvYfAh2LaQ2Dg=="/>
+        </item>
+    </channel>
+</rss>

@@ -32,12 +32,28 @@ fi
 : "${APPLE_TEAM_ID:?APPLE_TEAM_ID must be set}"
 
 echo "==> Codesigning ${APP_DIR}"
-# Sign nested executables/frameworks first, then the outer bundle.
-find "${APP_DIR}/Contents" \( -name "*.dylib" -o -name "*.framework" \) -print0 \
-    | while IFS= read -r -d '' nested; do
-        codesign --force --options runtime --timestamp \
-            --sign "${SIGNING_IDENTITY}" "${nested}"
-    done
+sign_code() {
+    codesign --force --options runtime --timestamp \
+        --sign "${SIGNING_IDENTITY}" "$1"
+}
+
+# Sign nested code from the inside out, then sign the outer app bundle.
+# Sparkle embeds helper apps, XPC services, and standalone executables inside
+# Sparkle.framework; notarization requires all nested code to be signed by us.
+while IFS= read -r -d '' nested; do
+    sign_code "${nested}"
+done < <(find "${APP_DIR}/Contents" \( -name "*.xpc" -o -name "*.app" \) -depth -print0)
+
+while IFS= read -r -d '' nested; do
+    sign_code "${nested}"
+done < <(find "${APP_DIR}/Contents" -type f \( -name "*.dylib" -o -perm -111 \) \
+    ! -path "${MACOS_DIR}/${APP_NAME}" \
+    ! -path "*/_CodeSignature/*" \
+    -print0)
+
+while IFS= read -r -d '' nested; do
+    sign_code "${nested}"
+done < <(find "${APP_DIR}/Contents" -name "*.framework" -type d -depth -print0)
 
 codesign --force --options runtime --timestamp \
     --entitlements scripts/entitlements.plist \
@@ -82,11 +98,32 @@ create-dmg "${DMG_ARGS[@]}" "${DMG_PATH}" "${APP_DIR}"
 codesign --force --sign "${SIGNING_IDENTITY}" --timestamp "${DMG_PATH}"
 
 echo "==> Submitting to Apple notary service (this can take a few minutes)"
+NOTARY_RESULT="$(mktemp)"
+set +e
 xcrun notarytool submit "${DMG_PATH}" \
     --apple-id "${APPLE_ID}" \
     --password "${APPLE_ID_PASSWORD}" \
     --team-id "${APPLE_TEAM_ID}" \
-    --wait
+    --wait \
+    --output-format json > "${NOTARY_RESULT}"
+notary_exit=$?
+set -e
+cat "${NOTARY_RESULT}"
+
+notary_id="$(/usr/bin/plutil -extract id raw -o - "${NOTARY_RESULT}" 2>/dev/null || true)"
+notary_status="$(/usr/bin/plutil -extract status raw -o - "${NOTARY_RESULT}" 2>/dev/null || true)"
+
+if [[ "${notary_exit}" -ne 0 || "${notary_status}" != "Accepted" ]]; then
+    echo "❌ Notarization failed: ${notary_status:-unknown}" >&2
+    if [[ -n "${notary_id}" ]]; then
+        echo "==> Fetching notary log ${notary_id}" >&2
+        xcrun notarytool log "${notary_id}" \
+            --apple-id "${APPLE_ID}" \
+            --password "${APPLE_ID_PASSWORD}" \
+            --team-id "${APPLE_TEAM_ID}" || true
+    fi
+    exit 1
+fi
 
 echo "==> Stapling ticket"
 xcrun stapler staple "${DMG_PATH}"

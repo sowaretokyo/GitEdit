@@ -33,6 +33,7 @@ fi
 
 echo "==> Codesigning ${APP_DIR}"
 sign_code() {
+    echo "    signing ${1#${APP_DIR}/}"
     codesign --force --options runtime --timestamp \
         --sign "${SIGNING_IDENTITY}" "$1"
 }
@@ -43,6 +44,13 @@ sign_code() {
 while IFS= read -r -d '' nested; do
     sign_code "${nested}"
 done < <(find "${APP_DIR}/Contents" \( -name "*.xpc" -o -name "*.app" \) -depth -print0)
+
+while IFS= read -r -d '' nested; do
+    sign_code "${nested}"
+done < <(find "${APP_DIR}/Contents" \
+    -path "*/Sparkle.framework/Versions/*/Autoupdate" \
+    -type f \
+    -print0)
 
 while IFS= read -r -d '' nested; do
     sign_code "${nested}"

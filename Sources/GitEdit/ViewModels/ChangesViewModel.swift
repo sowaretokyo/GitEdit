@@ -124,10 +124,12 @@ final class ChangesViewModel: ObservableObject {
         do {
             if change.isUntracked {
                 if let content = git.readFileFromWorkTree(path: change.path) {
-                    diffText = content
-                        .split(separator: "\n", omittingEmptySubsequences: false)
-                        .map { "+\($0)" }
-                        .joined(separator: "\n")
+                    let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
+                    // Synthesize a unified diff so every line renders as an added
+                    // (green) line. The `@@` hunk header is required — without it
+                    // the parser treats the `+` lines as file headers (gray).
+                    let body = lines.map { "+\($0)" }.joined(separator: "\n")
+                    diffText = "@@ -0,0 +1,\(lines.count) @@\n" + body
                 } else {
                     diffText = ""
                 }
@@ -200,6 +202,11 @@ final class ChangesViewModel: ObservableObject {
         defer { isSavingEditor = false }
         do {
             try git.writeFile(path: change.path, content: editorFileContent)
+            // If this file is already staged, re-stage it so the commit captures
+            // the just-saved content instead of the stale index snapshot.
+            if change.willBeCommitted {
+                try await git.stage(path: change.path)
+            }
             hasEditorUnsavedChanges = false
             // Refresh diff and re-compute highlights.
             await refreshDiffForSelection()
@@ -227,6 +234,9 @@ final class ChangesViewModel: ObservableObject {
 
     // MARK: - Staging
 
+    /// Anchor row for shift-range toggles: the last row whose checkbox was operated.
+    private var lastToggledPath: String?
+
     func toggleInclusion(of change: FileChange) async {
         do {
             if change.willBeCommitted {
@@ -237,6 +247,61 @@ final class ChangesViewModel: ObservableObject {
             await refreshStatus()
         } catch {
             report(error, operation: change.willBeCommitted ? .unstage : .stage)
+        }
+        lastToggledPath = change.path
+    }
+
+    /// Toggle a single row, or — when `extendingRange` is set and a previous anchor
+    /// exists — the whole inclusive range between the anchor and `change`, matching
+    /// the clicked row's new state. `visible` should be the on-screen (filtered) list
+    /// so the range follows what the user actually sees.
+    func toggleInclusion(of change: FileChange, extendingRange: Bool, in visible: [FileChange]) async {
+        guard extendingRange,
+              let anchor = lastToggledPath,
+              let a = visible.firstIndex(where: { $0.path == anchor }),
+              let b = visible.firstIndex(where: { $0.path == change.path }),
+              a != b
+        else {
+            await toggleInclusion(of: change)
+            return
+        }
+        let target = !change.willBeCommitted
+        let slice = visible[min(a, b)...max(a, b)]
+        do {
+            for file in slice where !file.isIgnored && file.willBeCommitted != target {
+                if target {
+                    try await git.stage(path: file.path)
+                } else {
+                    try await git.unstage(path: file.path)
+                }
+            }
+            await refreshStatus()
+        } catch {
+            report(error, operation: target ? .stage : .unstage)
+        }
+        lastToggledPath = change.path
+    }
+
+    // MARK: - Discard
+
+    /// Discard a file's changes. Tracked files are reset to HEAD; untracked files
+    /// are moved to the Trash. Destructive — callers should confirm first.
+    func discard(_ change: FileChange) async {
+        do {
+            if change.isUntracked {
+                try await git.discardUntracked(
+                    path: change.path,
+                    wasStaged: change.hasStagedChange
+                )
+            } else {
+                try await git.discardTrackedChanges(path: change.path)
+            }
+            if selectedPath == change.path {
+                resetEditorState()
+            }
+            await refreshStatus()
+        } catch {
+            report(error, operation: .other(L("変更の破棄")))
         }
     }
 

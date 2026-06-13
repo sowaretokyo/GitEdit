@@ -12,33 +12,26 @@ struct CurrentRepositoryPicker: View {
         Button {
             isPresented.toggle()
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Image(systemName: "folder.fill")
-                    .imageScale(.small)
+                    .imageScale(.medium)
                     .foregroundStyle(.secondary)
 
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(L("Current Repository"))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    if let repo = store.selectedRepository {
-                        Text(repo.name)
-                            .font(.callout.weight(.semibold))
-                            .lineLimit(1)
-                    } else {
-                        Text(L("未選択"))
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
+                if let repo = store.selectedRepository {
+                    Text(repo.name)
+                        .font(.callout.weight(.medium))
+                        .lineLimit(1)
+                } else {
+                    Text(L("未選択"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
-                .frame(minWidth: 140, alignment: .leading)
 
                 Image(systemName: "chevron.down")
                     .imageScale(.small)
                     .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 4)
-            .padding(.vertical, 2)
         }
         .buttonStyle(.bordered)
         .controlSize(.large)

@@ -3,23 +3,28 @@
 # Outputs: build/GitEdit.app
 #
 # Env:
-#   APP_VERSION  (default 0.1.0) — CFBundleShortVersionString
-#   APP_BUILD    (default 1)     — CFBundleVersion
+#   APP_VERSION      (default 0.1.0) — CFBundleShortVersionString
+#   APP_BUILD        (default 1)     — CFBundleVersion
+#   SPARKLE_FEED_URL (default https://sowaretokyo.github.io/GitEdit/appcast.xml)
+#                   — SUFeedURL used by Sparkle
 set -euo pipefail
 
 APP_NAME="GitEdit"
 BUNDLE_ID="co.jp.sowaretokyo.gitedit"
 VERSION="${APP_VERSION:-0.1.0}"
 BUILD_NUMBER="${APP_BUILD:-1}"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://sowaretokyo.github.io/GitEdit/appcast.xml}"
+SPARKLE_PUBLIC_ED_KEY="VAkwLqs3kd/a+rDGAeOfyWM6/s/phb/5GwWLA1sIkRo="
 
 BUILD_DIR="build"
 APP_DIR="${BUILD_DIR}/${APP_NAME}.app"
 CONTENTS="${APP_DIR}/Contents"
 MACOS_DIR="${CONTENTS}/MacOS"
 RESOURCES="${CONTENTS}/Resources"
+FRAMEWORKS="${CONTENTS}/Frameworks"
 
 rm -rf "${APP_DIR}"
-mkdir -p "${MACOS_DIR}" "${RESOURCES}"
+mkdir -p "${MACOS_DIR}" "${RESOURCES}" "${FRAMEWORKS}"
 
 echo "==> Building universal release binary"
 swift build -c release --arch arm64 --arch x86_64
@@ -36,6 +41,17 @@ for bundle in "${PRODUCTS_DIR}"/*.bundle; do
     cp -R "${bundle}" "${RESOURCES}/"
 done
 shopt -u nullglob
+
+echo "==> Copying SPM frameworks"
+shopt -s nullglob
+for framework in "${PRODUCTS_DIR}/Frameworks"/*.framework; do
+    ditto "${framework}" "${FRAMEWORKS}/$(basename "${framework}")"
+done
+shopt -u nullglob
+
+if ! otool -l "${MACOS_DIR}/${APP_NAME}" | grep -q "@executable_path/../Frameworks"; then
+    install_name_tool -add_rpath "@executable_path/../Frameworks" "${MACOS_DIR}/${APP_NAME}"
+fi
 
 echo "==> Generating AppIcon.icns from Resources/AppIcon.png"
 SRC_PNG="Sources/GitEdit/Resources/AppIcon.png"
@@ -89,6 +105,10 @@ cat > "${CONTENTS}/Info.plist" <<EOF
     <string>© 2026 株式会社ソワレ東京</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.developer-tools</string>
+    <key>SUFeedURL</key>
+    <string>${SPARKLE_FEED_URL}</string>
+    <key>SUPublicEDKey</key>
+    <string>${SPARKLE_PUBLIC_ED_KEY}</string>
 </dict>
 </plist>
 EOF

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// The main view shown when a repository is selected.
 /// Mirrors GitHub Desktop's layout:
@@ -13,6 +14,7 @@ struct RepositoryView: View {
     @StateObject private var explorerVM: ExplorerViewModel
 
     @State private var selectedTab: Tab = .changes
+    @State private var watcher: RepositoryWatcher?
     @State private var isShowingFilePicker: Bool = false
     @State private var viewedGrepResult: GrepResult?
     @State private var viewedExplorerNode: FileNode?
@@ -53,28 +55,30 @@ struct RepositoryView: View {
     var body: some View {
         HSplitView {
             sidebar
-                .frame(minWidth: 320, idealWidth: 360, maxWidth: 480)
+                .frame(minWidth: 240, idealWidth: 300, maxWidth: 420)
 
             detail
-                .frame(minWidth: 480)
+                .frame(minWidth: 380)
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .task {
             await repoVM.bootstrap()
             await changesVM.refreshAll()
+            startWatching()
         }
+        .onDisappear { watcher?.stop(); watcher = nil }
         .onChange(of: selectedTab) { _, newTab in
             if newTab == .history && historyVM.commits.isEmpty {
                 Task { await historyVM.load() }
             }
         }
         .onChange(of: repoVM.dataVersion) { _, _ in
-            Task {
-                await changesVM.refreshAll()
-                if selectedTab == .history {
-                    await historyVM.load()
-                }
-            }
+            Task { await reload() }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
+        ) { _ in
+            Task { await reload() }
         }
         // After a commit, refresh the repo-level branch info (ahead / behind /
         // upstream) so the Push toolbar button lights up immediately, GHD-style.
@@ -184,6 +188,28 @@ struct RepositoryView: View {
         // Stay on the search tab and show the file in the right pane,
         // scrolled / highlighted to the matched line.
         viewedGrepResult = match
+    }
+
+    // MARK: - Auto refresh
+
+    /// Re-read everything from disk: branch/ahead-behind, working tree changes,
+    /// and (when relevant) the commit history. Cheap enough to run on every
+    /// detected change because the underlying git calls are debounced upstream.
+    private func reload() async {
+        await repoVM.refresh()
+        await changesVM.refreshAll()
+        if selectedTab == .history || !historyVM.commits.isEmpty {
+            await historyVM.load()
+        }
+    }
+
+    private func startWatching() {
+        guard watcher == nil else { return }
+        let w = RepositoryWatcher(url: repository.url) {
+            Task { await reload() }
+        }
+        w.start()
+        watcher = w
     }
 
     // MARK: - Sidebar

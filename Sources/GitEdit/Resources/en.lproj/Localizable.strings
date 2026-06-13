@@ -3,6 +3,7 @@
 /* ===== App & menus ===== */
 "GitEdit について" = "About GitEdit";
 "リポジトリを追加…" = "Add Repository…";
+"アップデートを確認…" = "Check for Updates…";
 "設定…" = "Settings…";
 
 /* ===== Settings ===== */
@@ -207,6 +208,15 @@
 "未コミットの変更があります" = "You have uncommitted changes";
 "先に変更をコミットするか退避してから切り替えてください。" = "Commit or stash your changes before switching.";
 "このまま切り替え" = "Switch Anyway";
+
+/* ===== Discard ===== */
+"変更を破棄…" = "Discard Changes…";
+"変更を破棄しますか？" = "Discard changes?";
+"変更を破棄" = "Discard Changes";
+"ゴミ箱に移動" = "Move to Trash";
+"%@ の変更を破棄して HEAD の状態に戻します。この操作は元に戻せません。" = "Discard changes to %@ and restore it to HEAD. This cannot be undone.";
+"%@ をゴミ箱に移動します。Finder のゴミ箱から復元できます。" = "Move %@ to the Trash. You can restore it from Finder's Trash.";
+"変更の破棄に失敗: %@" = "Discard failed: %@";
 
 /* ===== Status descriptions ===== */
 "未ステージ" = "Unstaged";

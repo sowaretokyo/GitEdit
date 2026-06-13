@@ -8,6 +8,10 @@ final class HistoryViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var error: String?
 
+    /// Full SHAs of commits not yet pushed to any remote. Drives the "unpushed"
+    /// marker in the commit list.
+    @Published var unpushedSHAs: Set<String> = []
+
     // MARK: - Commit detail (files + diff)
     @Published var commitFiles: [FileChange] = []
     @Published var selectedCommitFilePath: String?
@@ -40,7 +44,10 @@ final class HistoryViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            commits = try await git.recentCommits(limit: 200)
+            async let loaded = git.recentCommits(limit: 200)
+            async let unpushed = git.unpushedCommitSHAs()
+            commits = try await loaded
+            unpushedSHAs = await unpushed
             if selectedCommitID == nil {
                 selectedCommitID = commits.first?.id
             }

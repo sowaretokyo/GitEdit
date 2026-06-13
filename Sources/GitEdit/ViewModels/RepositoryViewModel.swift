@@ -266,7 +266,7 @@ final class RepositoryViewModel: ObservableObject {
         defer { isPushing = false }
         let needsUpstream = !hasUpstream
         do {
-            try await git.push(setUpstream: needsUpstream)
+            try await git.push(branch: needsUpstream ? currentBranchName : nil, setUpstream: needsUpstream)
             await refresh()
             bumpDataVersion()
             operationSuccess = needsUpstream ? L("ブランチをプッシュしました") : L("プッシュが完了しました")

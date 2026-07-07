@@ -116,21 +116,29 @@ final class RepositoryViewModel: ObservableObject {
 
     // MARK: - Issue links
 
-    /// The GitHub repository resolved from `origin`'s fetch URL, or the
-    /// first remote that resolves to a GitHub URL if there's no `origin`.
-    var githubRepository: GitHubRepositoryRef? {
+    /// The remote resolved as this repository's GitHub remote, paired with
+    /// its parsed repository reference. Prefers `origin`; falls back to the
+    /// first remote whose fetch URL parses as GitHub if there's no `origin`
+    /// or `origin` isn't a GitHub URL (e.g. a fork remote named `upstream`).
+    var githubRemote: (name: String, ref: GitHubRepositoryRef)? {
         if let originRemote = remotes.first(where: { $0.name == "origin" }),
            let fetchURL = originRemote.fetchURL,
            let ref = GitHubRemoteParser.parse(remoteURL: fetchURL) {
-            return ref
+            return (originRemote.name, ref)
         }
         for remote in remotes {
             if let fetchURL = remote.fetchURL,
                let ref = GitHubRemoteParser.parse(remoteURL: fetchURL) {
-                return ref
+                return (remote.name, ref)
             }
         }
         return nil
+    }
+
+    /// The GitHub repository resolved from `origin`'s fetch URL, or the
+    /// first remote that resolves to a GitHub URL if there's no `origin`.
+    var githubRepository: GitHubRepositoryRef? {
+        githubRemote?.ref
     }
 
     /// The GitHub issue URL encoded in the current branch's name (e.g.
@@ -492,21 +500,26 @@ final class RepositoryViewModel: ObservableObject {
     /// isn't something this app supports, so there's no upstream to track.
     /// If `pr/<number>` already exists locally we never re-fetch over it:
     /// the user may have added local commits on top while reviewing.
+    /// Fetches happen against the resolved GitHub remote (see
+    /// `githubRemote`), not necessarily `origin` — falls back to `origin`
+    /// only if resolution somehow returns nil (checkout is only reachable
+    /// once a GitHub remote resolved, so this is just a safety net).
     func checkoutPullRequest(_ pr: PullRequest) async {
+        let remoteName = githubRemote?.name ?? "origin"
         do {
             let branchName: String
             if pr.isSameRepo {
                 branchName = pr.head.ref
-                try await git.fetch(refspec: pr.head.ref)
+                try await git.fetch(remote: remoteName, refspec: pr.head.ref)
                 if localBranches.contains(where: { $0.name == branchName }) {
                     try await git.switchBranch(name: branchName)
                 } else {
-                    try await git.switchCreatingTrackingBranch(name: branchName, startPoint: "origin/\(branchName)")
+                    try await git.switchCreatingTrackingBranch(name: branchName, startPoint: "\(remoteName)/\(branchName)")
                 }
             } else {
                 branchName = "pr/\(pr.number)"
                 if !localBranches.contains(where: { $0.name == branchName }) {
-                    try await git.fetch(refspec: "pull/\(pr.number)/head:\(branchName)")
+                    try await git.fetch(remote: remoteName, refspec: "pull/\(pr.number)/head:\(branchName)")
                 }
                 try await git.switchBranch(name: branchName)
             }

@@ -102,13 +102,26 @@ final class HistoryViewModel: ObservableObject {
         lastLoadedCommitID = id
 
         isLoadingCommitFiles = true
-        defer { isLoadingCommitFiles = false }
+        defer {
+            // Only clear the spinner if this call is still the newest one —
+            // `lastLoadedCommitID` names the winner (reassigned synchronously
+            // by each newer call), so a stale load finishing after the user
+            // switched commits must not flip it off while the newer load runs.
+            if lastLoadedCommitID == id { isLoadingCommitFiles = false }
+        }
 
         do {
-            commitFiles = try await git.filesInCommit(sha: id)
+            let files = try await git.filesInCommit(sha: id)
+            // The user may have already selected a different commit while
+            // this was in flight — don't clobber its data with this stale
+            // result (`lastLoadedCommitID` is reassigned synchronously at
+            // the start of each newer call, so it names the winner).
+            guard lastLoadedCommitID == id else { return }
+            commitFiles = files
             selectedCommitFilePath = commitFiles.first?.path
             await loadDiffForSelectedFile(commitID: id)
         } catch {
+            guard lastLoadedCommitID == id else { return }
             commitFiles = []
             commitFileDiff = ""
             selectedCommitFilePath = nil
@@ -130,11 +143,21 @@ final class HistoryViewModel: ObservableObject {
             return
         }
         isLoadingCommitFileDiff = true
-        defer { isLoadingCommitFileDiff = false }
+        defer {
+            // Same winner-token guard as above: only the load matching the
+            // still-current commit + file may clear the spinner, so a stale
+            // diff load doesn't flip it off while a newer one is in flight.
+            if lastLoadedCommitID == commitID, selectedCommitFilePath == path {
+                isLoadingCommitFileDiff = false
+            }
+        }
 
         if ImageDiff.isImagePath(path), let file = selectedCommitFile {
             let before = file.category == .added ? nil : await git.showFileData(rev: "\(commitID)^", path: path)
             let after = file.category == .deleted ? nil : await git.showFileData(rev: commitID, path: path)
+            // The commit or file selection may have moved on while these
+            // awaits were in flight — don't overwrite it with a stale diff.
+            guard lastLoadedCommitID == commitID, selectedCommitFilePath == path else { return }
             let content = ImageDiffContent(before: before, after: after)
             commitImageDiff = content.hasAny ? content : nil
             commitFileDiff = ""
@@ -143,8 +166,11 @@ final class HistoryViewModel: ObservableObject {
         commitImageDiff = nil
 
         do {
-            commitFileDiff = try await git.diffForFile(in: commitID, path: path)
+            let diff = try await git.diffForFile(in: commitID, path: path)
+            guard lastLoadedCommitID == commitID, selectedCommitFilePath == path else { return }
+            commitFileDiff = diff
         } catch {
+            guard lastLoadedCommitID == commitID, selectedCommitFilePath == path else { return }
             commitFileDiff = L("差分の取得に失敗: %@", error.localizedDescription)
         }
     }

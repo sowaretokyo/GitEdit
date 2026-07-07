@@ -80,8 +80,8 @@ struct PullRequest: Codable, Identifiable, Hashable {
     /// True when the PR's head branch lives in the same repository as its
     /// base — i.e. not a fork. `head.repo` is `nil` when the response omits
     /// it (fork PR whose source repository was deleted), which is also
-    /// treated as "not same-repo" since a plain `git fetch origin <ref>`
-    /// requires the ref to actually exist on `origin`.
+    /// treated as "not same-repo" since a plain `git fetch <remote> <ref>`
+    /// requires the ref to actually exist on that remote.
     var isSameRepo: Bool {
         guard let headRepo = head.repo, let baseRepo = base.repo else { return false }
         return headRepo.fullName == baseRepo.fullName

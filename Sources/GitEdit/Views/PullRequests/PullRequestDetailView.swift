@@ -17,6 +17,10 @@ struct PullRequestDetailView: View {
                 VStack(alignment: .leading, spacing: DT.Space.lg) {
                     header
 
+                    if let message = viewModel.detailLoadErrorMessage {
+                        detailLoadErrorBanner(message)
+                    }
+
                     if let body = pullRequest.body?.trimmingCharacters(in: .whitespacesAndNewlines), !body.isEmpty {
                         bodySection(body)
                     }
@@ -115,6 +119,23 @@ struct PullRequestDetailView: View {
             .textSelection(.enabled)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Detail load error
+
+    /// Shown when the last `select`/refresh failed. Unobtrusive since the
+    /// checks/reviews/comments below may still be showing valid (possibly
+    /// stale, in the same-PR-refresh case) data.
+    private func detailLoadErrorBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: DT.Space.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color(nsColor: .systemOrange))
+            Text(L("最新の情報を取得できませんでした: %@", message))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Checks

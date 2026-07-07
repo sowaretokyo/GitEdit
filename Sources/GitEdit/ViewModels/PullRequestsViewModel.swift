@@ -18,6 +18,10 @@ final class PullRequestsViewModel: ObservableObject {
     /// 50 PRs we fetch). Drives the "上位 N 件を表示しています" footnote.
     @Published private(set) var hasMorePages: Bool = false
     @Published var loadErrorMessage: String?
+    /// Set when a detail load/refresh (`select`) fails. Cleared on every new
+    /// `select` call. Distinct from `loadErrorMessage`, which covers the PR
+    /// list itself.
+    @Published private(set) var detailLoadErrorMessage: String?
     /// Set when the load failure was `.unauthorized` / `.insufficientScopes`,
     /// so the sidebar can offer "再サインイン" instead of a generic retry.
     @Published private(set) var needsReauth: Bool = false
@@ -25,6 +29,11 @@ final class PullRequestsViewModel: ObservableObject {
 
     private var currentRef: GitHubRepositoryRef?
     private var currentToken: String?
+    /// Bumped at the start of every `select`. A detail load only clears
+    /// `isLoadingDetail` if its captured generation is still the latest — a
+    /// stale load finishing after the user picked another PR (or re-selected
+    /// the same one) must not flip the spinner off mid-load.
+    private var detailLoadGeneration = 0
 
     // MARK: - Loading
 
@@ -85,18 +94,35 @@ final class PullRequestsViewModel: ObservableObject {
     // MARK: - Selection & detail
 
     func select(_ pr: PullRequest) async {
+        // Switching to a different PR must not leave the previous PR's
+        // checks/reviews/comments on screen if the detail request below
+        // fails — clear them up front. A refresh of the already-selected PR
+        // intentionally keeps the old data on failure (see the catch below).
+        let isNewSelection = selectedPullRequest?.number != pr.number
+        detailLoadErrorMessage = nil
+        if isNewSelection {
+            detailChecks = []
+            reviews = []
+            comments = []
+        }
         selectedPullRequest = pr
         guard let ref = currentRef, let token = currentToken else { return }
 
+        detailLoadGeneration += 1
+        let generation = detailLoadGeneration
         isLoadingDetail = true
-        defer { isLoadingDetail = false }
+        defer {
+            if generation == detailLoadGeneration { isLoadingDetail = false }
+        }
 
         let api = GitHubAPI(token: token)
         do {
             let detail = try await api.pullRequest(owner: ref.owner, repo: ref.repo, number: pr.number)
-            // The user may have already clicked a different row while this
-            // was in flight — don't clobber their new selection.
-            guard selectedPullRequest?.number == pr.number else { return }
+            // A newer select() may have started while this was in flight —
+            // bail rather than clobber it. `generation` is stronger than a
+            // PR-number check: it also distinguishes overlapping loads of the
+            // same PR (e.g. a refresh landing on top of a manual re-select).
+            guard generation == detailLoadGeneration else { return }
             selectedPullRequest = detail
 
             async let runsResult = try? api.checkRuns(owner: ref.owner, repo: ref.repo, ref: detail.head.sha)
@@ -108,14 +134,19 @@ final class PullRequestsViewModel: ObservableObject {
             let loadedReviews = await reviewsResult ?? []
             let loadedComments = await commentsResult ?? []
 
-            guard selectedPullRequest?.number == pr.number else { return }
+            guard generation == detailLoadGeneration else { return }
             detailChecks = runs
             ciSummaries[pr.number] = CIStatusAggregator.aggregate(checkRuns: runs, combined: combined)
             reviews = loadedReviews
             comments = loadedComments
         } catch {
-            // A failed detail refresh isn't fatal — keep showing the summary
-            // from the list and whatever checks we already had.
+            // A failed detail refresh isn't fatal — keep showing whatever
+            // summary/checks/reviews/comments we already had (cleared above
+            // if this was a new selection). Only surface the error if this is
+            // still the newest load — a newer select() (including a refresh of
+            // the same PR that has since succeeded) may have superseded it.
+            guard generation == detailLoadGeneration else { return }
+            detailLoadErrorMessage = Self.errorDetail(for: error)
         }
     }
 
@@ -245,8 +276,16 @@ final class PullRequestsViewModel: ObservableObject {
     /// sidebar's badges populate without waiting on a serial N-request chain.
     private func loadCIStatuses(api: GitHubAPI, ref: GitHubRepositoryRef) async {
         let prs = pullRequests
+        // Cap in-flight PRs to avoid firing up to 50×2 = 100 concurrent
+        // GitHub API requests at once, which can trip the secondary rate
+        // limit. A sliding window keeps at most `maxConcurrent` PRs'
+        // requests (~2 each) in flight at a time: start with a batch, then
+        // add one more each time a task completes.
+        let maxConcurrent = 5
         await withTaskGroup(of: (Int, CIStatusSummary).self) { group in
-            for pr in prs {
+            var nextIndex = 0
+
+            func addTask(for pr: PullRequest) {
                 group.addTask {
                     async let runsResult = try? api.checkRuns(owner: ref.owner, repo: ref.repo, ref: pr.head.sha)
                     async let combinedResult = try? api.combinedStatus(owner: ref.owner, repo: ref.repo, ref: pr.head.sha)
@@ -255,9 +294,19 @@ final class PullRequestsViewModel: ObservableObject {
                     return (pr.number, CIStatusAggregator.aggregate(checkRuns: runs, combined: combined))
                 }
             }
+
+            while nextIndex < prs.count && nextIndex < maxConcurrent {
+                addTask(for: prs[nextIndex])
+                nextIndex += 1
+            }
+
             var results: [Int: CIStatusSummary] = [:]
             for await (number, summary) in group {
                 results[number] = summary
+                if nextIndex < prs.count {
+                    addTask(for: prs[nextIndex])
+                    nextIndex += 1
+                }
             }
             ciSummaries = results
         }

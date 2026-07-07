@@ -39,8 +39,8 @@ final class GitClient: @unchecked Sendable {
     }
 
     @discardableResult
-    func run(_ arguments: [String]) async throws -> String {
-        try await Self.runGit(arguments, cwd: repositoryURL)
+    func run(_ arguments: [String], stdin: Data? = nil) async throws -> String {
+        try await Self.runGit(arguments, cwd: repositoryURL, stdin: stdin)
     }
 
     // MARK: - Static runner (used by clone/init that don't have a repo yet)
@@ -105,7 +105,7 @@ final class GitClient: @unchecked Sendable {
     }
 
     @discardableResult
-    static func runGit(_ arguments: [String], cwd: URL? = nil) async throws -> String {
+    static func runGit(_ arguments: [String], cwd: URL? = nil, stdin: Data? = nil) async throws -> String {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -119,6 +119,9 @@ final class GitClient: @unchecked Sendable {
             let stderr = Pipe()
             process.standardOutput = stdout
             process.standardError = stderr
+
+            let stdinPipe: Pipe? = stdin.map { _ in Pipe() }
+            if let stdinPipe { process.standardInput = stdinPipe }
 
             // Drain both pipes on background threads *while* git runs. Reading
             // only in terminationHandler deadlocks once output exceeds the OS
@@ -159,6 +162,18 @@ final class GitClient: @unchecked Sendable {
                 try process.run()
             } catch {
                 cont.resume(throwing: error)
+                return
+            }
+
+            if let stdin, let stdinPipe {
+                queue.async {
+                    // If git exits early (e.g. a malformed patch), the read end
+                    // is already closed and this write breaks the pipe. That's
+                    // not our error to report — the process's exit code /
+                    // stderr is, so we just swallow it here with `try?`.
+                    try? stdinPipe.fileHandleForWriting.write(contentsOf: stdin)
+                    stdinPipe.fileHandleForWriting.closeFile()
+                }
             }
         }
     }
@@ -306,6 +321,27 @@ final class GitClient: @unchecked Sendable {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return try await run("diff", base, "--no-color", "--", path)
+    }
+
+    /// Worktree vs index — the part of a file's changes that isn't staged yet.
+    func diffUnstaged(path: String) async throws -> String {
+        try await run("diff", "--no-color", "--", path)
+    }
+
+    /// Index vs HEAD — the part of a file's changes that's already staged.
+    func diffStaged(path: String) async throws -> String {
+        try await run("diff", "--cached", "--no-color", "--", path)
+    }
+
+    /// Applies a hunk/line-level patch (built by `PatchBuilder`) to the index
+    /// only. `reverse: false` stages (worktree → index); `reverse: true`
+    /// unstages (index → HEAD, applied backwards).
+    func applyPatch(_ patch: String, reverse: Bool) async throws {
+        try await runClassified(operation: reverse ? .unstage : .stage) {
+            var args = ["apply", "--cached", "--whitespace=nowarn"]
+            if reverse { args.append("--reverse") }
+            _ = try await self.run(args, stdin: Data(patch.utf8))
+        }
     }
 
     func readFileFromWorkTree(path: String) -> String? {

@@ -21,6 +21,11 @@ final class ChangesViewModel: ObservableObject {
     // MARK: - Diff view
     @Published var diffText: String = ""
     @Published var isLoadingDiff: Bool = false
+    /// Worktree-vs-index and index-vs-HEAD diffs for the selected file, used
+    /// by `HunkStagingDiffView` for hunk/line-level staging. `nil` for
+    /// untracked files, where partial staging isn't offered.
+    @Published var unstagedDiff: FileDiff?
+    @Published var stagedDiff: FileDiff?
 
     // MARK: - Editor view
     @Published var editorViewMode: DiffEditorMode = .diff
@@ -118,6 +123,8 @@ final class ChangesViewModel: ObservableObject {
     func refreshDiffForSelection() async {
         guard let change = selectedChange else {
             diffText = ""
+            unstagedDiff = nil
+            stagedDiff = nil
             return
         }
         isLoadingDiff = true
@@ -134,11 +141,27 @@ final class ChangesViewModel: ObservableObject {
                 } else {
                     diffText = ""
                 }
+                unstagedDiff = nil
+                stagedDiff = nil
             } else {
                 diffText = try await git.diffAgainstHEAD(path: change.path)
+                // Renamed files keep using the whole-file diff above — hunk
+                // staging doesn't support rename-aware patches.
+                if change.renameFrom == nil {
+                    async let unstagedText = git.diffUnstaged(path: change.path)
+                    async let stagedText = git.diffStaged(path: change.path)
+                    let (u, s) = try await (unstagedText, stagedText)
+                    unstagedDiff = PatchBuilder.parse(u)
+                    stagedDiff = PatchBuilder.parse(s)
+                } else {
+                    unstagedDiff = nil
+                    stagedDiff = nil
+                }
             }
         } catch {
             diffText = L("差分の取得に失敗: %@", error.localizedDescription)
+            unstagedDiff = nil
+            stagedDiff = nil
         }
     }
 
@@ -283,6 +306,37 @@ final class ChangesViewModel: ObservableObject {
             report(error, operation: target ? .stage : .unstage)
         }
         lastToggledPath = change.path
+    }
+
+    // MARK: - Hunk / line staging
+
+    /// Stage a single hunk from the "unstaged changes" section.
+    func stageHunk(_ hunk: DiffHunk, in fileDiff: FileDiff, path: String) async {
+        await applyHunkPatch(PatchBuilder.patch(for: hunk, in: fileDiff), reverse: false)
+    }
+
+    /// Unstage a single hunk from the "staged changes" section.
+    func unstageHunk(_ hunk: DiffHunk, in fileDiff: FileDiff, path: String) async {
+        await applyHunkPatch(PatchBuilder.patch(for: hunk, in: fileDiff), reverse: true)
+    }
+
+    /// Stage only the checked `+`/`-` lines, possibly spanning several hunks.
+    func stageSelectedLines(_ selections: [(hunk: DiffHunk, selectedLineIndices: Set<Int>)], in fileDiff: FileDiff, path: String) async {
+        await applyHunkPatch(PatchBuilder.patch(selections: selections, in: fileDiff), reverse: false)
+    }
+
+    /// Unstage only the checked `+`/`-` lines, possibly spanning several hunks.
+    func unstageSelectedLines(_ selections: [(hunk: DiffHunk, selectedLineIndices: Set<Int>)], in fileDiff: FileDiff, path: String) async {
+        await applyHunkPatch(PatchBuilder.patch(selections: selections, in: fileDiff), reverse: true)
+    }
+
+    private func applyHunkPatch(_ patch: String, reverse: Bool) async {
+        do {
+            try await git.applyPatch(patch, reverse: reverse)
+            await refreshStatus()
+        } catch {
+            report(error, operation: reverse ? .unstage : .stage)
+        }
     }
 
     // MARK: - Discard

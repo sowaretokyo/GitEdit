@@ -17,6 +17,10 @@ struct Commit: Identifiable, Hashable {
     /// Authors discovered from `Co-Authored-By:` trailers in the commit body,
     /// in the order they appear. The primary `author` is *not* included here.
     let coAuthors: [CommitAuthor]
+    /// True when the commit has two or more parents. Merge commits are
+    /// excluded from history-editing operations (reword/squash/drop/reorder)
+    /// since rewriting across one is not something GitEdit supports.
+    let isMerge: Bool
 
     /// Primary author followed by every co-author. Convenient for views that
     /// render a stack of avatars / a "X, Y, Z" name list.

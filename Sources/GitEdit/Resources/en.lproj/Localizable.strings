@@ -533,3 +533,30 @@
 "マージ可否を判定中です" = "Checking whether this can be merged";
 "ブランチ保護によりマージがブロックされています" = "Merging is blocked by branch protection";
 "チェックが失敗していますが、マージしますか？" = "Some checks are failing. Merge anyway?";
+
+/* ===== Commit history editing (reword / squash / drop / reorder) ===== */
+"メッセージを編集…" = "Edit Message…";
+"ひとつ前のコミットに統合…" = "Combine with Previous Commit…";
+"1つ上へ移動" = "Move Up";
+"1つ下へ移動" = "Move Down";
+"このコミットを削除" = "Delete This Commit";
+"コミットメッセージを編集" = "Edit Commit Message";
+"コミットを統合" = "Combine Commits";
+"統合後のメッセージ" = "Message After Combining";
+"このコミットを削除しますか？" = "Delete this commit?";
+"このコミットを削除すると、変更内容が履歴から取り除かれます。" = "Deleting this commit removes its changes from history.";
+"コミットを削除" = "Delete Commit";
+"メッセージを更新しました" = "Updated the commit message.";
+"コミットを統合しました" = "Combined the commits.";
+"コミットを削除しました" = "Deleted the commit.";
+"コミットを並び替えました" = "Reordered the commits.";
+"編集前の状態に戻します。作業中の変更がある場合は失われます。" = "This restores the state before the edit. Any uncommitted changes will be lost.";
+"『%@』を取り消しますか？" = "Undo \"%@\"?";
+"コミットの編集を中止し、元の状態に戻しました（競合または適用できない変更のため）。" = "Cancelled the edit and restored the previous state (due to a conflict or changes that couldn't be applied).";
+"作業ツリーに変更があります。コミットまたは退避してから編集してください。" = "You have uncommitted changes. Commit or stash them before editing history.";
+"マージコミットを含む範囲は編集できません。" = "History that includes a merge commit can't be edited.";
+"プッシュ済みのコミットは編集できません。" = "Pushed commits can't be edited.";
+"メッセージ編集" = "Message Edit";
+"コミットの統合" = "Combine";
+"コミットの削除" = "Delete Commit";
+"並び替え" = "Reorder";

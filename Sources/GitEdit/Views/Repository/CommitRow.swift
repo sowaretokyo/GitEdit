@@ -3,6 +3,12 @@ import SwiftUI
 struct CommitRow: View {
     let commit: Commit
     var isUnpushed: Bool = false
+    /// When both are provided, the row offers a context menu for
+    /// history-editing actions (reword/squash/move/drop), gated per-action
+    /// by `HistoryViewModel.editability(at:)`. `nil` in contexts that only
+    /// need to display a commit (e.g. future reuse outside the history tab).
+    var viewModel: HistoryViewModel?
+    var index: Int?
 
     private static let relativeFormatter: RelativeDateTimeFormatter = {
         let f = RelativeDateTimeFormatter()
@@ -46,5 +52,42 @@ struct CommitRow: View {
             }
         }
         .padding(.vertical, DT.RowDensity.tight)
+        .contextMenu { contextMenuContent }
+    }
+
+    @ViewBuilder
+    private var contextMenuContent: some View {
+        if let viewModel, let index {
+            let editability = viewModel.editability(at: index)
+
+            Button(L("メッセージを編集…")) {
+                viewModel.requestReword(at: index)
+            }
+            .disabled(!editability.canReword)
+
+            Button(L("ひとつ前のコミットに統合…")) {
+                viewModel.requestSquashIntoPrevious(at: index)
+            }
+            .disabled(!editability.canSquashIntoPrevious)
+
+            Divider()
+
+            Button(L("1つ上へ移動")) {
+                Task { await viewModel.moveUp(at: index) }
+            }
+            .disabled(!editability.canMoveUp)
+
+            Button(L("1つ下へ移動")) {
+                Task { await viewModel.moveDown(at: index) }
+            }
+            .disabled(!editability.canMoveDown)
+
+            Divider()
+
+            Button(L("このコミットを削除"), role: .destructive) {
+                viewModel.requestDrop(at: index)
+            }
+            .disabled(!editability.canDrop)
+        }
     }
 }

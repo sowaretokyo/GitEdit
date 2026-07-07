@@ -153,4 +153,10 @@ final class ReflogParserTests: XCTestCase {
         XCTAssertTrue(UndoableOperation.amendCommit(summary: "x", targetSHA: "s").isResetBased)
         XCTAssertTrue(UndoableOperation.mergeCommit(summary: "x", targetSHA: "s").isResetBased)
     }
+
+    func testEditHistoryIsResetBasedAndRequiresHardReset() {
+        let op = UndoableOperation.editHistory(summary: "メッセージ編集", targetSHA: "s")
+        XCTAssertTrue(op.isResetBased)
+        XCTAssertTrue(op.requiresHardReset)
+    }
 }

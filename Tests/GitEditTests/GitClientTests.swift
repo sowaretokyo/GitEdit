@@ -50,4 +50,44 @@ final class GitClientTests: XCTestCase {
     func testGitVersionAtLeastRejectsEmptyInput() {
         XCTAssertFalse(GitClient.gitVersionAtLeast("", major: 2, minor: 35))
     }
+
+    // MARK: - parseRecentCommits (%P parsing / Commit.isMerge)
+
+    private func makeCommitRecord(
+        sha: String, subject: String, parents: String, body: String? = nil
+    ) -> String {
+        let US = GitClient.recentCommitsFieldSeparator
+        let RS = GitClient.recentCommitsRecordSeparator
+        let fullBody = body ?? subject
+        return "\(sha)\(US)\(String(sha.prefix(7)))\(US)2026-01-15T10:00:00+09:00\(US)Test\(US)test@example.com\(US)\(subject)\(US)\(parents)\(US)\(fullBody)\(RS)"
+    }
+
+    func testParseRecentCommitsWithNoParentsIsNotAMerge() {
+        let output = makeCommitRecord(sha: "aaa111", subject: "initial commit", parents: "")
+        let commits = GitClient.parseRecentCommits(output)
+        XCTAssertEqual(commits.count, 1)
+        XCTAssertFalse(commits[0].isMerge)
+    }
+
+    func testParseRecentCommitsWithOneParentIsNotAMerge() {
+        let output = makeCommitRecord(sha: "bbb222", subject: "normal commit", parents: "aaa111")
+        let commits = GitClient.parseRecentCommits(output)
+        XCTAssertEqual(commits.count, 1)
+        XCTAssertFalse(commits[0].isMerge)
+    }
+
+    func testParseRecentCommitsWithTwoParentsIsAMerge() {
+        let output = makeCommitRecord(sha: "ccc333", subject: "Merge branch 'foo'", parents: "bbb222 ddd444")
+        let commits = GitClient.parseRecentCommits(output)
+        XCTAssertEqual(commits.count, 1)
+        XCTAssertTrue(commits[0].isMerge)
+    }
+
+    func testParseRecentCommitsPreservesOrderAcrossMultipleRecords() {
+        let output = makeCommitRecord(sha: "ccc333", subject: "newest", parents: "bbb222")
+            + makeCommitRecord(sha: "bbb222", subject: "oldest", parents: "")
+        let commits = GitClient.parseRecentCommits(output)
+        XCTAssertEqual(commits.map(\.id), ["ccc333", "bbb222"])
+        XCTAssertEqual(commits.map(\.summary), ["newest", "oldest"])
+    }
 }

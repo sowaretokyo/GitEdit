@@ -13,6 +13,21 @@ enum UndoBlockReason: Equatable {
     case pushedHistory
 }
 
+/// Snapshot of the most recent commit-history edit (reword/squash/drop/
+/// reorder), recorded so `RepositoryViewModel` can offer to undo it without
+/// relying on the reflog (a rebase produces several reflog entries, not one
+/// clean "undo this" step the way a plain commit does).
+struct CommitEditBackup: Equatable {
+    /// HEAD before the edit — `refs/gitedit/undo` points here.
+    let backupSHA: String
+    /// HEAD right after the edit. If HEAD has since moved on (another
+    /// commit, another edit), this backup is stale and gets dropped.
+    let resultSHA: String
+    /// Operation name shown in the undo confirmation / toast, e.g.
+    /// "メッセージ編集" (Message Edit).
+    let summary: String
+}
+
 @MainActor
 final class RepositoryViewModel: ObservableObject {
     // MARK: - Repository metadata
@@ -44,6 +59,9 @@ final class RepositoryViewModel: ObservableObject {
     @Published var undoState: UndoAvailability = .none
     @Published var pendingUndo: UndoableOperation?
     @Published var undoBlockedMessage: String?
+    /// Set by `recordCommitEditBackup` right after a successful history
+    /// edit; consumed (and nil'd) by `refreshUndoState` once HEAD moves on.
+    @Published private(set) var commitEditBackup: CommitEditBackup?
 
     // MARK: - Network ops state
     @Published var isFetching: Bool = false
@@ -132,6 +150,10 @@ final class RepositoryViewModel: ObservableObject {
     func bootstrap() async {
         await refresh()
         supportsPartialStash = await git.supportsStagedStash()
+        // A leftover backup ref from a previous session is never consulted
+        // again (`commitEditBackup` is in-memory only), so clear it out
+        // rather than let it accumulate as repo litter.
+        await git.deleteRef(CommitHistoryEditor.Runner.backupRef)
         startWatching()
     }
 
@@ -234,6 +256,24 @@ final class RepositoryViewModel: ObservableObject {
             undoState = .none
             return
         }
+
+        if let backup = commitEditBackup {
+            if await git.headSHA() == backup.resultSHA {
+                let op = UndoableOperation.editHistory(summary: backup.summary, targetSHA: backup.backupSHA)
+                if await git.isHeadUnpushed() {
+                    undoState = .available(op)
+                } else {
+                    undoState = .blocked(.pushedHistory, op)
+                }
+                return
+            }
+            // HEAD moved on since the edit (a new commit, another edit,
+            // etc.) — this backup no longer corresponds to "undo the last
+            // thing that happened", so drop it rather than let it linger.
+            commitEditBackup = nil
+            await git.deleteRef(CommitHistoryEditor.Runner.backupRef)
+        }
+
         let entries = (try? await git.reflogEntries(limit: 2)) ?? []
         guard let top = entries.first,
               let op = ReflogUndoDeriver.undoable(top: top, previous: entries.count > 1 ? entries[1] : nil) else {
@@ -245,6 +285,16 @@ final class RepositoryViewModel: ObservableObject {
         } else {
             undoState = .available(op)
         }
+    }
+
+    /// Called after a successful commit-history edit to record the undo
+    /// snapshot and surface the success banner, mirroring how other
+    /// mutating operations refresh state + set `operationSuccess`.
+    func recordCommitEditBackup(_ backup: CommitEditBackup, successMessage: String) {
+        commitEditBackup = backup
+        operationSuccess = successMessage
+        Task { await refreshUndoState() }
+        bumpDataVersion()
     }
 
     private func bumpDataVersion() {
@@ -673,12 +723,19 @@ final class RepositoryViewModel: ObservableObject {
                 await refresh()
                 bumpDataVersion()
                 operationSuccess = L("取り消しました: %@", from)
+            case .editHistory(let summary, let targetSHA):
+                try await git.resetHard(to: targetSHA)
+                commitEditBackup = nil
+                await git.deleteRef(CommitHistoryEditor.Runner.backupRef)
+                await refresh()
+                bumpDataVersion()
+                operationSuccess = L("取り消しました: %@", summary)
             }
         } catch {
             switch op {
             case .branchSwitch:
                 report(error, operation: .switchBranch)
-            case .commit, .amendCommit, .mergeCommit:
+            case .commit, .amendCommit, .mergeCommit, .editHistory:
                 report(error, operation: .other(L("取り消し")))
             }
         }

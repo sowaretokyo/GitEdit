@@ -158,6 +158,34 @@
 "ブランチを作成しました: %@" = "Created %@";
 "マージしました: %@" = "Merged %@";
 "ブランチを削除しました: %@" = "Deleted %@";
+"現在のブランチにマージ" = "Merge Into Current Branch";
+"ブランチを削除…" = "Delete Branch…";
+"「%@」を「%@」にマージしますか？" = "Merge \"%@\" into \"%@\"?";
+"「%@」の変更が現在のブランチに取り込まれます。" = "Changes from \"%@\" will be merged into the current branch.";
+"マージ" = "Merge";
+"「%@」を削除しますか？" = "Delete \"%@\"?";
+"このブランチをローカルから削除します。" = "This removes the branch from your local repository.";
+"削除" = "Delete";
+"未マージのブランチです" = "This branch isn't fully merged";
+"「%@」にはまだマージされていない変更があります。強制削除するとこれらのコミットは失われる可能性があります。" = "\"%@\" has changes that haven't been merged yet. Force-deleting may lose those commits.";
+"強制削除" = "Force Delete";
+
+/* ===== Merge conflict resolution ===== */
+"マージを完了しました" = "Merge completed";
+"マージを中止しました" = "Merge aborted";
+"マージ競合の解決" = "Resolve merge conflicts";
+"「%@」をマージ中" = "Merging \"%@\"";
+"%d 件のファイルが競合しています" = "%d file(s) still conflicting";
+"すべての競合が解決されました。マージを続行できます。" = "All conflicts resolved. You can continue the merge.";
+"マージを続行" = "Continue Merge";
+"マージを中止" = "Abort Merge";
+"マージを中止しますか？" = "Abort the merge?";
+"マージ前の状態に戻ります。競合の解決内容は失われます。" = "This restores the pre-merge state. Your conflict resolutions will be lost.";
+"自分の変更を採用" = "Use My Changes";
+"相手の変更を採用" = "Use Their Changes";
+"エディタで編集" = "Edit in Editor";
+"解決済みにする" = "Mark as Resolved";
+"競合" = "Conflict";
 
 /* ===== Network ops ===== */
 "フェッチ" = "Fetch";

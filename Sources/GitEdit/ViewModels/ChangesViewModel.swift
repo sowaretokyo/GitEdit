@@ -76,9 +76,14 @@ final class ChangesViewModel: ObservableObject {
     var stagedCount: Int { changes.filter { $0.willBeCommitted }.count }
 
     var allStaged: Bool {
-        let stageable = changes.filter { !$0.isIgnored }
+        // Conflicted files aren't "stageable" via the all-files checkbox — they
+        // need explicit resolution — so exclude them from the completeness check.
+        let stageable = changes.filter { !$0.isIgnored && !$0.isConflicted }
         return !stageable.isEmpty && stageable.allSatisfy { $0.willBeCommitted }
     }
+
+    var conflictedFiles: [FileChange] { changes.filter { $0.isConflicted } }
+    var hasConflicts: Bool { changes.contains { $0.isConflicted } }
 
     // MARK: - Loading
 
@@ -260,8 +265,10 @@ final class ChangesViewModel: ObservableObject {
         do {
             try git.writeFile(path: change.path, content: editorFileContent)
             // If this file is already staged, re-stage it so the commit captures
-            // the just-saved content instead of the stale index snapshot.
-            if change.willBeCommitted {
+            // the just-saved content instead of the stale index snapshot. Skip
+            // conflicted files — staging them here would silently "resolve" a
+            // conflict the user hasn't actually addressed.
+            if change.willBeCommitted && !change.isConflicted {
                 try await git.stage(path: change.path)
             }
             hasEditorUnsavedChanges = false
@@ -327,7 +334,7 @@ final class ChangesViewModel: ObservableObject {
         let target = !change.willBeCommitted
         let slice = visible[min(a, b)...max(a, b)]
         do {
-            for file in slice where !file.isIgnored && file.willBeCommitted != target {
+            for file in slice where !file.isIgnored && !file.isConflicted && file.willBeCommitted != target {
                 if target {
                     try await git.stage(path: file.path)
                 } else {
@@ -367,7 +374,17 @@ final class ChangesViewModel: ObservableObject {
     func toggleAll() async {
         let target = !allStaged
         do {
-            if target {
+            if hasConflicts {
+                // `git add -A` / `restore --staged .` would touch conflicted
+                // files too; stage/unstage everything else individually instead.
+                for file in changes where !file.isIgnored && !file.isConflicted && file.willBeCommitted != target {
+                    if target {
+                        try await git.stage(path: file.path)
+                    } else {
+                        try await git.unstage(path: file.path)
+                    }
+                }
+            } else if target {
                 try await git.stageAll()
             } else {
                 try await git.unstageAll()
@@ -375,6 +392,37 @@ final class ChangesViewModel: ObservableObject {
             await refreshStatus()
         } catch {
             report(error, operation: target ? .stage : .unstage)
+        }
+    }
+
+    // MARK: - Merge conflict resolution
+
+    func resolveUsingOurs(_ change: FileChange) async {
+        do {
+            try await git.checkoutOurs(path: change.path)
+            try await git.markResolved(path: change.path)
+            await refreshStatus()
+        } catch {
+            report(error, operation: .merge)
+        }
+    }
+
+    func resolveUsingTheirs(_ change: FileChange) async {
+        do {
+            try await git.checkoutTheirs(path: change.path)
+            try await git.markResolved(path: change.path)
+            await refreshStatus()
+        } catch {
+            report(error, operation: .merge)
+        }
+    }
+
+    func markResolved(_ change: FileChange) async {
+        do {
+            try await git.markResolved(path: change.path)
+            await refreshStatus()
+        } catch {
+            report(error, operation: .merge)
         }
     }
 

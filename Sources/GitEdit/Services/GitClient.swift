@@ -580,6 +580,49 @@ final class GitClient: @unchecked Sendable {
         }
     }
 
+    // MARK: - Merge conflict resolution
+
+    /// Whether a merge is currently in progress (i.e. `MERGE_HEAD` exists).
+    func isMergeInProgress() async -> Bool {
+        (try? await run("rev-parse", "-q", "--verify", "MERGE_HEAD")) != nil
+    }
+
+    /// Replace `path` with the version from the current branch ("ours").
+    func checkoutOurs(path: String) async throws {
+        try await runClassified(operation: .merge) {
+            try await self.run("checkout", "--ours", "--", path)
+        }
+    }
+
+    /// Replace `path` with the version from the branch being merged in ("theirs").
+    func checkoutTheirs(path: String) async throws {
+        try await runClassified(operation: .merge) {
+            try await self.run("checkout", "--theirs", "--", path)
+        }
+    }
+
+    /// Mark a conflicted path as resolved by staging it.
+    func markResolved(path: String) async throws {
+        try await runClassified(operation: .merge) {
+            try await self.run("add", "-A", "--", path)
+        }
+    }
+
+    /// Conclude an in-progress merge. `core.editor=true` skips the commit-message
+    /// editor since git already prepared a merge commit message.
+    func continueMerge() async throws {
+        try await runClassified(operation: .merge) {
+            try await self.run("-c", "core.editor=true", "merge", "--continue")
+        }
+    }
+
+    /// Abort an in-progress merge, restoring the pre-merge working tree.
+    func abortMerge() async throws {
+        try await runClassified(operation: .merge) {
+            try await self.run("merge", "--abort")
+        }
+    }
+
     // MARK: - Remotes & Network
 
     func remotes() async throws -> [Remote] {

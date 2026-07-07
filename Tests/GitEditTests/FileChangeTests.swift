@@ -38,6 +38,39 @@ final class FileChangeTests: XCTestCase {
         XCTAssertEqual(make("U", "U").category, .unmerged)
     }
 
+    // MARK: - isConflicted
+
+    func testIsConflictedForAllConflictStatePairs() {
+        let pairs: [(Character, Character)] = [
+            ("U", "U"), ("A", "A"), ("D", "D"), ("A", "U"), ("U", "A"), ("U", "D"), ("D", "U")
+        ]
+        for (index, working) in pairs {
+            let fc = make(index, working)
+            XCTAssertTrue(fc.isConflicted, "\(index)\(working) should be conflicted")
+            XCTAssertEqual(fc.category, .unmerged, "\(index)\(working) should categorize as unmerged")
+        }
+    }
+
+    func testIsConflictedFalseForOrdinaryStates() {
+        let pairs: [(Character, Character)] = [
+            ("M", " "), (" ", "M"), ("A", " "), (" ", "D"), ("?", "?")
+        ]
+        for (index, working) in pairs {
+            let fc = make(index, working)
+            XCTAssertFalse(fc.isConflicted, "\(index)\(working) should not be conflicted")
+        }
+        // Regression: plain add/delete (not the AA/DD conflict pair) keep their
+        // original category.
+        XCTAssertEqual(make("A", " ").category, .added)
+        XCTAssertEqual(make("D", " ").category, .deleted)
+    }
+
+    func testPrimaryStatusSymbolIsUForConflicts() {
+        XCTAssertEqual(make("U", "U").primaryStatusSymbol, "U")
+        XCTAssertEqual(make("A", "A").primaryStatusSymbol, "U")
+        XCTAssertEqual(make("D", "D").primaryStatusSymbol, "U")
+    }
+
     func testUntrackedFlag() {
         let fc = make("?", "?")
         XCTAssertTrue(fc.isUntracked)

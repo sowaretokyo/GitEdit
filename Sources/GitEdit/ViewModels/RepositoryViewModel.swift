@@ -33,9 +33,16 @@ final class RepositoryViewModel: ObservableObject {
     // MARK: - Refresh trigger for downstream view models
     @Published var dataVersion: Int = 0
 
+    // MARK: - Merge state
+    @Published var isMerging: Bool = false
+    @Published var mergingBranchName: String?
+
     // MARK: - Sheet states
     @Published var isShowingCreateBranchSheet: Bool = false
     @Published var pendingSwitchBranch: Branch?  // confirmation dialog for switch with dirty tree
+    @Published var pendingMergeBranch: Branch?
+    @Published var pendingDeleteBranch: Branch?
+    @Published var pendingForceDeleteBranch: Branch?
 
     let git: GitClient
 
@@ -101,6 +108,7 @@ final class RepositoryViewModel: ObservableObject {
             guard !Task.isCancelled, let self else { return }
             await self.refreshBranchInfo()
             await self.refreshDirty()
+            await self.refreshMergeState()
             self.dataVersion &+= 1
         }
     }
@@ -110,7 +118,8 @@ final class RepositoryViewModel: ObservableObject {
         async let branches: Void = refreshBranches()
         async let rems: Void = refreshRemotes()
         async let dirty: Void = refreshDirty()
-        _ = await (branch, branches, rems, dirty)
+        async let merge: Void = refreshMergeState()
+        _ = await (branch, branches, rems, dirty, merge)
     }
 
     func refreshBranchInfo() async {
@@ -141,6 +150,18 @@ final class RepositoryViewModel: ObservableObject {
 
     func refreshDirty() async {
         hasUncommittedChanges = await git.hasUncommittedChanges()
+    }
+
+    /// Detects an in-progress merge (own or started from an external terminal).
+    /// Only clears `mergingBranchName` when the merge is actually over — it's
+    /// otherwise set explicitly by `mergeBranch` so the banner can name the
+    /// branch being merged in.
+    func refreshMergeState() async {
+        let inProgress = await git.isMergeInProgress()
+        isMerging = inProgress
+        if !inProgress {
+            mergingBranchName = nil
+        }
     }
 
     private func bumpDataVersion() {
@@ -209,6 +230,20 @@ final class RepositoryViewModel: ObservableObject {
         }
     }
 
+    func requestMerge(_ branch: Branch) {
+        pendingMergeBranch = branch
+    }
+
+    func cancelMerge() {
+        pendingMergeBranch = nil
+    }
+
+    func confirmMerge() async {
+        guard let branch = pendingMergeBranch else { return }
+        pendingMergeBranch = nil
+        await mergeBranch(branch)
+    }
+
     func mergeBranch(_ branch: Branch) async {
         do {
             try await git.merge(branch: branch.name, noFastForward: false)
@@ -216,8 +251,66 @@ final class RepositoryViewModel: ObservableObject {
             bumpDataVersion()
             operationSuccess = L("マージしました: %@", branch.name)
         } catch {
+            // A merge conflict leaves MERGE_HEAD behind — confirm against that
+            // rather than trusting the classified error kind, then surface it
+            // via MergeConflictBanner instead of the red error banner.
+            await refreshMergeState()
+            if isMerging {
+                mergingBranchName = branch.name
+                await refresh()
+                bumpDataVersion()
+            } else {
+                report(error, operation: .merge)
+            }
+        }
+    }
+
+    func continueMerge() async {
+        do {
+            try await git.continueMerge()
+            mergingBranchName = nil
+            await refresh()
+            bumpDataVersion()
+            operationSuccess = L("マージを完了しました")
+        } catch {
             report(error, operation: .merge)
         }
+    }
+
+    func abortMerge() async {
+        do {
+            try await git.abortMerge()
+            mergingBranchName = nil
+            await refresh()
+            bumpDataVersion()
+            operationSuccess = L("マージを中止しました")
+        } catch {
+            report(error, operation: .merge)
+        }
+    }
+
+    func requestDeleteBranch(_ branch: Branch) {
+        pendingDeleteBranch = branch
+    }
+
+    func cancelDelete() {
+        pendingDeleteBranch = nil
+    }
+
+    func confirmDeleteBranch() async {
+        guard let branch = pendingDeleteBranch else { return }
+        pendingDeleteBranch = nil
+        await deleteBranch(branch)
+    }
+
+    func cancelForceDelete() {
+        pendingForceDeleteBranch = nil
+    }
+
+    func confirmForceDeleteBranch() async {
+        guard let branch = pendingForceDeleteBranch else { return }
+        pendingForceDeleteBranch = nil
+        await deleteBranch(branch, force: true)
     }
 
     func deleteBranch(_ branch: Branch, force: Bool = false) async {
@@ -226,7 +319,13 @@ final class RepositoryViewModel: ObservableObject {
             await refresh()
             operationSuccess = L("ブランチを削除しました: %@", branch.name)
         } catch {
-            report(error, operation: .deleteBranch)
+            let classified = GitErrorClassifier.classify(error, operation: .deleteBranch)
+            if !force, classified.kind == .branchNotFullyMerged {
+                // Don't silently force-delete — let the user confirm losing commits.
+                pendingForceDeleteBranch = branch
+            } else {
+                operationError = classified
+            }
         }
     }
 

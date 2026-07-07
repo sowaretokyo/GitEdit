@@ -9,12 +9,18 @@ struct FileChangeRow: View {
 
     var body: some View {
         HStack(spacing: DT.Space.sm) {
-            Toggle("", isOn: Binding(
-                get: { change.willBeCommitted },
-                set: { _ in onToggle() }
-            ))
-            .toggleStyle(.checkbox)
-            .labelsHidden()
+            if change.isConflicted {
+                // Conflicted files can't be staged via checkbox — they need
+                // explicit resolution first.
+                Color.clear.frame(width: 14, height: 14)
+            } else {
+                Toggle("", isOn: Binding(
+                    get: { change.willBeCommitted },
+                    set: { _ in onToggle() }
+                ))
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+            }
 
             StatusBadge(change: change)
 
@@ -26,7 +32,14 @@ struct FileChangeRow: View {
 
             Spacer(minLength: 0)
 
-            if change.hasStagedChange && change.hasUnstagedChange {
+            if change.isConflicted {
+                Text(L("競合"))
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Color(nsColor: .systemOrange).opacity(0.18), in: Capsule())
+                    .foregroundStyle(Color(nsColor: .systemOrange))
+            } else if change.hasStagedChange && change.hasUnstagedChange {
                 Text(L("一部のみ ステージ"))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)

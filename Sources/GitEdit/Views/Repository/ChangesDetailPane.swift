@@ -8,6 +8,19 @@ struct ChangesDetailPane: View {
     @ObservedObject var repoVM: RepositoryViewModel
 
     var body: some View {
+        VStack(spacing: 0) {
+            if repoVM.isMerging {
+                MergeConflictBanner(repoVM: repoVM, viewModel: viewModel)
+            }
+            if let change = viewModel.selectedChange, change.isConflicted {
+                ConflictResolutionBar(change: change, viewModel: viewModel)
+            }
+            content
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if viewModel.selectedChange != nil {
             DiffEditView(viewModel: viewModel)
         } else if viewModel.changes.isEmpty {

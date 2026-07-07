@@ -23,7 +23,18 @@ struct FileChange: Identifiable, Hashable {
     /// Will this be included in the next `git commit`?
     var willBeCommitted: Bool { hasStagedChange }
 
+    /// True for unresolved merge conflicts: both porcelain "U" states, plus the
+    /// add/add and delete/delete conflict pairs which porcelain reports as
+    /// "AA" / "DD" rather than "U?"/"?U".
+    var isConflicted: Bool {
+        if indexStatus == "U" || workingStatus == "U" { return true }
+        if indexStatus == "A" && workingStatus == "A" { return true }
+        if indexStatus == "D" && workingStatus == "D" { return true }
+        return false
+    }
+
     var primaryStatusSymbol: String {
+        if isConflicted { return "U" }
         if isUntracked { return "?" }
         if isIgnored { return "!" }
         if indexStatus != " " { return String(indexStatus) }
@@ -43,6 +54,7 @@ struct FileChange: Identifiable, Hashable {
     }
 
     var category: Category {
+        if isConflicted { return .unmerged }
         if isUntracked { return .untracked }
         if isIgnored { return .ignored }
         let ch = (indexStatus != " ") ? indexStatus : workingStatus

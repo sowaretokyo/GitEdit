@@ -130,6 +130,7 @@ struct RepositoryView: View {
         } message: { _ in
             Text(L("先に変更をコミットするか退避してから切り替えてください。"))
         }
+        .modifier(BranchActionDialogs(repoVM: repoVM))
         .overlay(alignment: .bottomTrailing) {
             OperationFeedbackBanner(repoVM: repoVM)
         }
@@ -322,6 +323,70 @@ struct RepositoryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+}
+
+// MARK: - Branch action confirmation dialogs (merge / delete / force-delete)
+
+/// Extracted into its own `ViewModifier` so the type checker evaluates these
+/// three `confirmationDialog`s independently of `RepositoryView.body`'s
+/// already-long modifier chain.
+private struct BranchActionDialogs: ViewModifier {
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                L("「%@」を「%@」にマージしますか？", repoVM.pendingMergeBranch?.name ?? "", repoVM.currentBranchName ?? ""),
+                isPresented: Binding(
+                    get: { repoVM.pendingMergeBranch != nil },
+                    set: { if !$0 { repoVM.cancelMerge() } }
+                ),
+                presenting: repoVM.pendingMergeBranch
+            ) { _ in
+                Button(L("マージ")) {
+                    Task { await repoVM.confirmMerge() }
+                }
+                Button(L("キャンセル"), role: .cancel) {
+                    repoVM.cancelMerge()
+                }
+            } message: { branch in
+                Text(L("「%@」の変更が現在のブランチに取り込まれます。", branch.name))
+            }
+            .confirmationDialog(
+                L("「%@」を削除しますか？", repoVM.pendingDeleteBranch?.name ?? ""),
+                isPresented: Binding(
+                    get: { repoVM.pendingDeleteBranch != nil },
+                    set: { if !$0 { repoVM.cancelDelete() } }
+                ),
+                presenting: repoVM.pendingDeleteBranch
+            ) { _ in
+                Button(L("削除"), role: .destructive) {
+                    Task { await repoVM.confirmDeleteBranch() }
+                }
+                Button(L("キャンセル"), role: .cancel) {
+                    repoVM.cancelDelete()
+                }
+            } message: { _ in
+                Text(L("このブランチをローカルから削除します。"))
+            }
+            .confirmationDialog(
+                L("未マージのブランチです"),
+                isPresented: Binding(
+                    get: { repoVM.pendingForceDeleteBranch != nil },
+                    set: { if !$0 { repoVM.cancelForceDelete() } }
+                ),
+                presenting: repoVM.pendingForceDeleteBranch
+            ) { _ in
+                Button(L("強制削除"), role: .destructive) {
+                    Task { await repoVM.confirmForceDeleteBranch() }
+                }
+                Button(L("キャンセル"), role: .cancel) {
+                    repoVM.cancelForceDelete()
+                }
+            } message: { branch in
+                Text(L("「%@」にはまだマージされていない変更があります。強制削除するとこれらのコミットは失われる可能性があります。", branch.name))
+            }
     }
 }
 

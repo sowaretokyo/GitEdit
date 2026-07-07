@@ -1,6 +1,18 @@
 import Foundation
 import SwiftUI
 
+/// Whether the most recent history event can be undone.
+enum UndoAvailability: Equatable {
+    case none
+    case available(UndoableOperation)
+    case blocked(UndoBlockReason, UndoableOperation)
+}
+
+enum UndoBlockReason: Equatable {
+    /// Undoing would rewrite a commit that's already been pushed to a remote.
+    case pushedHistory
+}
+
 @MainActor
 final class RepositoryViewModel: ObservableObject {
     // MARK: - Repository metadata
@@ -23,6 +35,11 @@ final class RepositoryViewModel: ObservableObject {
     @Published var stashes: [StashEntry] = []
     @Published var isShowingStashSheet: Bool = false
     @Published var pendingStashDrop: StashEntry?
+
+    // MARK: - Undo
+    @Published var undoState: UndoAvailability = .none
+    @Published var pendingUndo: UndoableOperation?
+    @Published var undoBlockedMessage: String?
 
     // MARK: - Network ops state
     @Published var isFetching: Bool = false
@@ -146,6 +163,7 @@ final class RepositoryViewModel: ObservableObject {
             await self.refreshBranchInfo()
             await self.refreshDirty()
             await self.refreshMergeState()
+            await self.refreshUndoState()
             self.dataVersion &+= 1
         }
     }
@@ -157,7 +175,8 @@ final class RepositoryViewModel: ObservableObject {
         async let dirty: Void = refreshDirty()
         async let merge: Void = refreshMergeState()
         async let stash: Void = loadStashes()
-        _ = await (branch, branches, rems, dirty, merge, stash)
+        async let undoS: Void = refreshUndoState()
+        _ = await (branch, branches, rems, dirty, merge, stash, undoS)
     }
 
     func refreshBranchInfo() async {
@@ -199,6 +218,27 @@ final class RepositoryViewModel: ObservableObject {
         isMerging = inProgress
         if !inProgress {
             mergingBranchName = nil
+        }
+    }
+
+    /// Derives whether the last reflog event is undoable. Merges in progress
+    /// and unborn/detached HEADs (both surfaced as an empty reflog read) are
+    /// treated as "nothing to undo" rather than errors.
+    func refreshUndoState() async {
+        guard !isMerging else {
+            undoState = .none
+            return
+        }
+        let entries = (try? await git.reflogEntries(limit: 2)) ?? []
+        guard let top = entries.first,
+              let op = ReflogUndoDeriver.undoable(top: top, previous: entries.count > 1 ? entries[1] : nil) else {
+            undoState = .none
+            return
+        }
+        if op.isResetBased, !(await git.isHeadUnpushed()) {
+            undoState = .blocked(.pushedHistory, op)
+        } else {
+            undoState = .available(op)
         }
     }
 
@@ -518,6 +558,62 @@ final class RepositoryViewModel: ObservableObject {
             : classified
         await refresh()
         bumpDataVersion()
+    }
+
+    // MARK: - Undo operations
+
+    func requestUndo() {
+        switch undoState {
+        case .none:
+            break
+        case .available(let op):
+            pendingUndo = op
+        case .blocked(.pushedHistory, _):
+            undoBlockedMessage = L("プッシュ済みのコミットが含まれるため取り消せません。取り消すとリモートとの整合が崩れ、強制プッシュが必要になります。")
+        }
+    }
+
+    func confirmUndo() async {
+        guard let op = pendingUndo else { return }
+        pendingUndo = nil
+        await performUndo(op)
+    }
+
+    func cancelUndo() {
+        pendingUndo = nil
+    }
+
+    func dismissUndoBlocked() {
+        undoBlockedMessage = nil
+    }
+
+    private func performUndo(_ op: UndoableOperation) async {
+        do {
+            switch op {
+            case .commit(let summary, let targetSHA), .amendCommit(let summary, let targetSHA):
+                try await git.resetSoft(to: targetSHA)
+                await refresh()
+                bumpDataVersion()
+                operationSuccess = L("取り消しました: %@", summary)
+            case .mergeCommit(let summary, let targetSHA):
+                try await git.resetHard(to: targetSHA)
+                await refresh()
+                bumpDataVersion()
+                operationSuccess = L("取り消しました: %@", summary)
+            case .branchSwitch(let from, _):
+                try await git.checkoutRef(from)
+                await refresh()
+                bumpDataVersion()
+                operationSuccess = L("取り消しました: %@", from)
+            }
+        } catch {
+            switch op {
+            case .branchSwitch:
+                report(error, operation: .switchBranch)
+            case .commit, .amendCommit, .mergeCommit:
+                report(error, operation: .other(L("取り消し")))
+            }
+        }
     }
 
     // MARK: - Network operations

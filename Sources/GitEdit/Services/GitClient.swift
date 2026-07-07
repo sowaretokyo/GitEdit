@@ -576,6 +576,38 @@ final class GitClient: @unchecked Sendable {
         try await run("rev-parse", selector).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    // MARK: - Undo (reflog-based)
+
+    func reflogEntries(limit: Int = 2) async throws -> [ReflogEntry] {
+        let output = try await run("reflog", "-n", String(limit), "--format=\(ReflogParser.formatTemplate)")
+        return ReflogParser.parse(output)
+    }
+
+    /// Moves HEAD (and the current branch) to `ref`, keeping the difference
+    /// staged. Used to undo a commit/amend.
+    func resetSoft(to ref: String) async throws {
+        try await runClassified(operation: .other(L("取り消し"))) {
+            try await self.run("reset", "--soft", ref)
+        }
+    }
+
+    /// Moves HEAD (and the current branch) to `ref`, discarding the working
+    /// tree and index difference. Used to undo a merge.
+    func resetHard(to ref: String) async throws {
+        try await runClassified(operation: .other(L("取り消し"))) {
+            try await self.run("reset", "--hard", ref)
+        }
+    }
+
+    /// Checks out `ref` directly (as opposed to `switchBranch`, which uses
+    /// `git switch`). Used to undo a branch switch back to the exact prior
+    /// ref, which may itself be a branch name.
+    func checkoutRef(_ ref: String) async throws {
+        try await runClassified(operation: .switchBranch) {
+            try await self.run("checkout", ref)
+        }
+    }
+
     // MARK: - Branches
 
     func listLocalBranches() async throws -> [Branch] {

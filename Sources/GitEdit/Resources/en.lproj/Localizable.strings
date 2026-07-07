@@ -420,3 +420,21 @@
 "退避の復元に失敗しました" = "Failed to apply stash";
 "退避の削除" = "Delete Stash";
 "退避の削除に失敗しました" = "Failed to delete stash";
+
+/* ===== Undo ===== */
+"直前の操作を取り消す" = "Undo last action";
+"取り消しました: %@" = "Undone: %@";
+"コミット『%@』を取り消しますか？" = "Undo the commit \"%@\"?";
+"このコミットを取り消し、変更はステージされた状態に戻します。" = "Undoes this commit and returns its changes to the staging area.";
+"直前の修正（amend）を取り消しますか？" = "Undo the amend?";
+"amend を取り消し、修正前のコミットに戻します。" = "Reverts the amend and restores the commit as it was before.";
+"マージ『%@』を取り消しますか？" = "Undo the merge \"%@\"?";
+"このマージを取り消し、マージ前の状態に戻します。" = "Undoes this merge and restores the pre-merge state.";
+"ブランチ切替を取り消しますか？" = "Undo the branch switch?";
+"「%@」に戻ります。" = "Switches back to \"%@\".";
+"未コミットの変更は失われます。" = "Uncommitted changes will be lost.";
+"取り消す" = "Undo";
+"この操作は取り消せません" = "This action can't be undone";
+"プッシュ済みのコミットが含まれるため取り消せません。取り消すとリモートとの整合が崩れ、強制プッシュが必要になります。" = "It includes commits already pushed to the remote. Undoing would break sync with the remote and require a force push.";
+"取り消せる操作はありません（作業ツリーの変更・退避・プッシュ済みの操作は取り消し対象外）" = "Nothing to undo (working-tree edits, stashes, and pushed operations can't be undone)";
+"取り消し" = "Undo";

@@ -91,6 +91,8 @@ struct DiffEditView: View {
         if let change = viewModel.selectedChange {
             if viewModel.selectedFileIsEditable && viewModel.editorViewMode == .edit {
                 editor(change: change)
+            } else if canUseHunkStaging(for: change) {
+                HunkStagingDiffView(viewModel: viewModel, path: change.path)
             } else {
                 DiffView(
                     diffText: viewModel.diffText,
@@ -101,9 +103,39 @@ struct DiffEditView: View {
                 if !viewModel.selectedFileIsEditable {
                     nonEditableHint(change: change)
                 }
+                if !change.isUntracked, !viewModel.isLoadingDiff {
+                    partialStagingUnavailableHint
+                }
             }
         } else {
             placeholder
+        }
+    }
+
+    /// Hunk/line staging needs a tracked, non-renamed file whose worktree/index
+    /// diffs have loaded and turned out not to be binary. Everything else
+    /// (untracked, renamed, binary, or mid-load) keeps the whole-file DiffView.
+    private func canUseHunkStaging(for change: FileChange) -> Bool {
+        guard !viewModel.isLoadingDiff else { return false }
+        guard !change.isUntracked, change.renameFrom == nil else { return false }
+        guard let unstaged = viewModel.unstagedDiff, let staged = viewModel.stagedDiff else { return false }
+        return !unstaged.isBinary && !staged.isBinary
+    }
+
+    @ViewBuilder
+    private var partialStagingUnavailableHint: some View {
+        let isRename = viewModel.selectedChange?.renameFrom != nil
+        let isBinary = (viewModel.unstagedDiff?.isBinary ?? false) || (viewModel.stagedDiff?.isBinary ?? false)
+        if isRename || isBinary {
+            HStack(spacing: DT.Space.sm) {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(.tertiary)
+                Text(L("このファイルは部分ステージできません（バイナリまたはリネーム）"))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(DT.Space.sm)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
         }
     }
 

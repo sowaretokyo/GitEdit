@@ -92,6 +92,14 @@
 "Summary（必須）" = "Summary (required)";
 "Description" = "Description";
 "%d 件を %@ にコミット" = "Commit %d files to %@";
+"未ステージの変更" = "Unstaged Changes";
+"ステージ済みの変更" = "Staged Changes";
+"このかたまりをステージ" = "Stage Hunk";
+"このかたまりをアンステージ" = "Unstage Hunk";
+"選択した %d 行をステージ" = "Stage %d Selected Lines";
+"選択した %d 行をアンステージ" = "Unstage %d Selected Lines";
+"選択をクリア" = "Clear Selection";
+"このファイルは部分ステージできません（バイナリまたはリネーム）" = "This file can't be partially staged (binary or rename).";
 
 /* ===== File picker ===== */
 "ファイルパスで絞り込み" = "Filter by file path";

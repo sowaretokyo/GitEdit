@@ -23,6 +23,10 @@ final class RepositoryViewModel: ObservableObject {
     @Published var stashes: [StashEntry] = []
     @Published var isShowingStashSheet: Bool = false
     @Published var pendingStashDrop: StashEntry?
+    @Published var isShowingPartialStashSheet: Bool = false
+    /// Whether the installed `git` supports `stash push --staged` (2.35+),
+    /// which partial stash relies on. Checked once at bootstrap.
+    @Published var supportsPartialStash: Bool = false
 
     // MARK: - Network ops state
     @Published var isFetching: Bool = false
@@ -110,6 +114,7 @@ final class RepositoryViewModel: ObservableObject {
 
     func bootstrap() async {
         await refresh()
+        supportsPartialStash = await git.supportsStagedStash()
         startWatching()
     }
 
@@ -408,6 +413,33 @@ final class RepositoryViewModel: ObservableObject {
         }
     }
 
+    /// Stashes only the hunks/lines described by `patch`, leaving the rest of
+    /// the working tree untouched. See `GitClient.stashPartial` for how the
+    /// selection is isolated from the user's existing staged state. Returns
+    /// whether it succeeded so the sheet knows whether to dismiss itself.
+    @discardableResult
+    func createPartialStash(patch: String, message: String) async -> Bool {
+        do {
+            try await git.stashPartial(patch: patch, message: message.isEmpty ? nil : message)
+            await refreshDirty()
+            await loadStashes()
+            bumpDataVersion()
+            operationSuccess = L("変更を一部退避しました")
+            return true
+        } catch {
+            report(error, operation: .stashPartial)
+            return false
+        }
+    }
+
+    /// The files touched by a stash entry, for the row's expandable preview.
+    /// Returns an empty array (rather than throwing) on failure so the UI can
+    /// show the "no files" empty state instead of an error banner for what's
+    /// a purely informational lookup.
+    func stashFiles(_ entry: StashEntry) async -> [FileChange] {
+        (try? await git.stashShowFiles(selector: entry.selector)) ?? []
+    }
+
     /// Applies a stash without removing it from the list.
     func applyStash(_ entry: StashEntry) async {
         do {
@@ -652,7 +684,7 @@ final class RepositoryViewModel: ObservableObject {
         case .fetch: await fetch()
         case .merge, .commit, .stage, .unstage,
              .switchBranch, .createBranch, .deleteBranch,
-             .clone, .initRepo, .stash, .stashApply, .stashDrop, .other:
+             .clone, .initRepo, .stash, .stashApply, .stashDrop, .stashPartial, .other:
             // No-op: these operations need their original arguments which we
             // didn't snapshot. The "Retry" suggestion is only surfaced for
             // network ops where re-running with the same args is safe.

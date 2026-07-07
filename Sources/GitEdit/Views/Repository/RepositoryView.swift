@@ -122,6 +122,9 @@ struct RepositoryView: View {
         .sheet(isPresented: $repoVM.isShowingStashSheet) {
             StashSheet(repoVM: repoVM)
         }
+        .sheet(isPresented: $repoVM.isShowingPartialStashSheet) {
+            PartialStashSheet(repoVM: repoVM)
+        }
         .confirmationDialog(
             L("未コミットの変更があります"),
             isPresented: Binding(

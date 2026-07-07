@@ -576,6 +576,71 @@ final class GitClient: @unchecked Sendable {
         try await run("rev-parse", selector).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The files touched by a stash entry, for the "退避内容を表示" preview.
+    /// `git stash show` diffs the stash against its parent commit, so this
+    /// reuses the same `--name-status -z` parsing as `filesInCommit`.
+    func stashShowFiles(selector: String) async throws -> [FileChange] {
+        let output = try await run("stash", "show", "--name-status", "-z", "--no-color", selector)
+        return Self.parseShowNameStatusZ(output)
+    }
+
+    /// True when the installed `git` supports `stash push --staged`
+    /// (added in git 2.35), which `stashPartial` relies on.
+    func supportsStagedStash() async -> Bool {
+        guard let output = try? await run("--version") else { return false }
+        return Self.gitVersionAtLeast(output, major: 2, minor: 35)
+    }
+
+    /// Parses the first `MAJOR.MINOR` version number found in `versionOutput`
+    /// (accepts both raw "2.35.0" and full "git version 2.50.1 (Apple
+    /// Git-155)" output) and compares it against `major`.`minor`. Returns
+    /// `false` for malformed or empty input rather than throwing, since
+    /// callers use this only to decide whether to offer a feature.
+    static func gitVersionAtLeast(_ versionOutput: String, major: Int, minor: Int) -> Bool {
+        guard let regex = try? NSRegularExpression(pattern: #"(\d+)\.(\d+)"#) else { return false }
+        let ns = versionOutput as NSString
+        guard let match = regex.firstMatch(in: versionOutput, range: NSRange(location: 0, length: ns.length)),
+              let foundMajor = Int(ns.substring(with: match.range(at: 1))),
+              let foundMinor = Int(ns.substring(with: match.range(at: 2))) else {
+            return false
+        }
+        if foundMajor != major { return foundMajor > major }
+        return foundMinor >= minor
+    }
+
+    /// Stashes only the changes described by `patch` (a hunk/line-level patch
+    /// built against HEAD by `PatchBuilder`), leaving everything else in the
+    /// working tree untouched. Requires git 2.35+ — check
+    /// `supportsStagedStash()` before offering this.
+    ///
+    /// Implementation ("write-tree/read-tree dance"):
+    /// 1. `write-tree` snapshots the *current* index so it can be restored
+    ///    exactly regardless of what happens below.
+    /// 2. `read-tree HEAD` resets the index to HEAD without touching the
+    ///    working tree, giving a clean slate to stage only the selection.
+    /// 3. `apply --cached` stages just the selected hunks/lines from `patch`.
+    /// 4. `stash push --staged` stashes exactly what's now staged and rolls
+    ///    back only that content from the working tree.
+    /// The index snapshotted in step 1 is restored on every exit path —
+    /// success or failure — so this never leaves the index in the
+    /// intermediate "HEAD + selection" state.
+    func stashPartial(patch: String, message: String?) async throws {
+        try await runClassified(operation: .stashPartial) {
+            let savedTree = try await self.run("write-tree").trimmingCharacters(in: .whitespacesAndNewlines)
+            do {
+                try await self.run("read-tree", "HEAD")
+                _ = try await self.run(["apply", "--cached", "--whitespace=nowarn"], stdin: Data(patch.utf8))
+                var args = ["stash", "push", "--staged"]
+                if let message, !message.isEmpty { args.append(contentsOf: ["-m", message]) }
+                try await self.run(args)
+            } catch {
+                _ = try? await self.run("read-tree", savedTree)
+                throw error
+            }
+            try await self.run("read-tree", savedTree)
+        }
+    }
+
     // MARK: - Branches
 
     func listLocalBranches() async throws -> [Branch] {

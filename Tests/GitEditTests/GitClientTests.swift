@@ -24,4 +24,30 @@ final class GitClientTests: XCTestCase {
         XCTAssertEqual(result?.summary, "")
         XCTAssertEqual(result?.body, "")
     }
+
+    // MARK: - gitVersionAtLeast (partial-stash feature gate: git 2.35+)
+
+    func testGitVersionAtLeastAcceptsExactBoundaryVersion() {
+        XCTAssertTrue(GitClient.gitVersionAtLeast("2.35.0", major: 2, minor: 35))
+    }
+
+    func testGitVersionAtLeastRejectsVersionBelowBoundary() {
+        XCTAssertFalse(GitClient.gitVersionAtLeast("2.34.1", major: 2, minor: 35))
+    }
+
+    func testGitVersionAtLeastParsesFullGitVersionOutputWithVendorSuffix() {
+        XCTAssertTrue(GitClient.gitVersionAtLeast("git version 2.50.1 (Apple Git-155)", major: 2, minor: 35))
+    }
+
+    func testGitVersionAtLeastAcceptsNewerMajorVersion() {
+        XCTAssertTrue(GitClient.gitVersionAtLeast("3.0.0", major: 2, minor: 35))
+    }
+
+    func testGitVersionAtLeastRejectsMalformedInput() {
+        XCTAssertFalse(GitClient.gitVersionAtLeast("not a version", major: 2, minor: 35))
+    }
+
+    func testGitVersionAtLeastRejectsEmptyInput() {
+        XCTAssertFalse(GitClient.gitVersionAtLeast("", major: 2, minor: 35))
+    }
 }

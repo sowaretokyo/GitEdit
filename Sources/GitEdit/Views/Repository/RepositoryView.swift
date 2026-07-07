@@ -10,6 +10,7 @@ struct RepositoryView: View {
     @StateObject private var repoVM: RepositoryViewModel
     @StateObject private var changesVM: ChangesViewModel
     @StateObject private var historyVM: HistoryViewModel
+    @StateObject private var prVM: PullRequestsViewModel
     @StateObject private var searchVM: SearchViewModel
     @StateObject private var explorerVM: ExplorerViewModel
 
@@ -22,6 +23,7 @@ struct RepositoryView: View {
     enum Tab: String, CaseIterable, Identifiable {
         case changes
         case history
+        case pullRequests
         case search
         case explorer
         var id: String { rawValue }
@@ -29,6 +31,7 @@ struct RepositoryView: View {
             switch self {
             case .changes: return L("変更")
             case .history: return L("履歴")
+            case .pullRequests: return L("プルリクエスト")
             case .search: return L("検索")
             case .explorer: return L("エクスプローラ")
             }
@@ -37,6 +40,9 @@ struct RepositoryView: View {
             switch self {
             case .changes: return "pencil"
             case .history: return "clock"
+            // "arrow.triangle.pull.request" doesn't exist as an SF Symbol;
+            // this is the closest stand-in until a dedicated icon is picked.
+            case .pullRequests: return "arrow.triangle.branch"
             case .search: return "magnifyingglass"
             case .explorer: return "folder"
             }
@@ -48,6 +54,7 @@ struct RepositoryView: View {
         _repoVM = StateObject(wrappedValue: RepositoryViewModel(repository: repository))
         _changesVM = StateObject(wrappedValue: ChangesViewModel(repository: repository))
         _historyVM = StateObject(wrappedValue: HistoryViewModel(repository: repository))
+        _prVM = StateObject(wrappedValue: PullRequestsViewModel())
         _searchVM = StateObject(wrappedValue: SearchViewModel(repository: repository.url))
         _explorerVM = StateObject(wrappedValue: ExplorerViewModel(repository: repository.url))
     }
@@ -70,6 +77,13 @@ struct RepositoryView: View {
         .onChange(of: selectedTab) { _, newTab in
             if newTab == .history && historyVM.commits.isEmpty {
                 Task { await historyVM.load() }
+            }
+            if newTab == .pullRequests, prVM.pullRequests.isEmpty, prVM.loadErrorMessage == nil, !prVM.isLoadingList {
+                Task {
+                    guard let ref = repoVM.githubRepository,
+                          let token = AccountStore.shared.currentToken else { return }
+                    await prVM.load(ref: ref, token: token)
+                }
             }
         }
         .onChange(of: repoVM.dataVersion) { _, _ in
@@ -264,6 +278,8 @@ struct RepositoryView: View {
             ChangesSidebar(viewModel: changesVM)
         case .history:
             HistorySidebar(viewModel: historyVM)
+        case .pullRequests:
+            PullRequestSidebar(repoVM: repoVM, viewModel: prVM)
         case .search:
             SearchSidebar(
                 viewModel: searchVM,
@@ -290,6 +306,12 @@ struct RepositoryView: View {
                 CommitDetailView(commit: commit, viewModel: historyVM, issueRepository: repoVM.githubRepository)
             } else {
                 pickCommitPrompt
+            }
+        case .pullRequests:
+            if let pr = prVM.selectedPullRequest {
+                PullRequestDetailView(pullRequest: pr, repoVM: repoVM, viewModel: prVM)
+            } else {
+                pickPRPrompt
             }
         case .search:
             if let result = viewedGrepResult {
@@ -351,6 +373,21 @@ struct RepositoryView: View {
                 .font(.system(size: 32, weight: .light))
                 .foregroundStyle(.tertiary)
             Text(L("左のリストからコミットを選択"))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var pickPRPrompt: some View {
+        VStack(spacing: DT.Space.sm) {
+            Spacer()
+            Image(systemName: "arrow.triangle.branch")
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text(L("左のリストからプルリクエストを選択"))
                 .font(.callout)
                 .foregroundStyle(.secondary)
             Spacer()

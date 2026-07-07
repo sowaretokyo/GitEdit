@@ -8,6 +8,10 @@ final class PullRequestsViewModel: ObservableObject {
     @Published private(set) var detailChecks: [CheckRun] = []
     @Published private(set) var isLoadingList: Bool = false
     @Published private(set) var isLoadingDetail: Bool = false
+    @Published private(set) var reviews: [PullRequestReview] = []
+    @Published private(set) var comments: [IssueComment] = []
+    @Published private(set) var isSubmittingReviewAction: Bool = false
+    @Published var reviewActionErrorMessage: String?
     /// Whether the list endpoint reported a further page (i.e. more than the
     /// 50 PRs we fetch). Drives the "上位 N 件を表示しています" footnote.
     @Published private(set) var hasMorePages: Bool = false
@@ -43,6 +47,8 @@ final class PullRequestsViewModel: ObservableObject {
             } else {
                 selectedPullRequest = nil
                 detailChecks = []
+                reviews = []
+                comments = []
             }
         } catch {
             pullRequests = []
@@ -93,16 +99,101 @@ final class PullRequestsViewModel: ObservableObject {
 
             async let runsResult = try? api.checkRuns(owner: ref.owner, repo: ref.repo, ref: detail.head.sha)
             async let combinedResult = try? api.combinedStatus(owner: ref.owner, repo: ref.repo, ref: detail.head.sha)
+            async let reviewsResult = try? api.reviews(owner: ref.owner, repo: ref.repo, number: pr.number)
+            async let commentsResult = try? api.issueComments(owner: ref.owner, repo: ref.repo, number: pr.number)
             let runs = await runsResult?.checkRuns ?? []
             let combined = await combinedResult
+            let loadedReviews = await reviewsResult ?? []
+            let loadedComments = await commentsResult ?? []
 
             guard selectedPullRequest?.number == pr.number else { return }
             detailChecks = runs
             ciSummaries[pr.number] = CIStatusAggregator.aggregate(checkRuns: runs, combined: combined)
+            reviews = loadedReviews
+            comments = loadedComments
         } catch {
             // A failed detail refresh isn't fatal — keep showing the summary
             // from the list and whatever checks we already had.
         }
+    }
+
+    // MARK: - Review & comment actions
+
+    /// Posts a plain conversation comment (not tied to review state).
+    /// Requires non-empty text — fails fast rather than sending GitHub an
+    /// empty comment.
+    func postComment(on pr: PullRequest, body: String) async -> String? {
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            reviewActionErrorMessage = L("コメントを入力してください")
+            return nil
+        }
+        return await performReviewAction(pr: pr) { api, ref in
+            _ = try await api.createIssueComment(owner: ref.owner, repo: ref.repo, number: pr.number, body: trimmed)
+            return L("コメントを投稿しました")
+        }
+    }
+
+    /// Approves the pull request. `body` is optional for an approval.
+    func approvePullRequest(_ pr: PullRequest, body: String) async -> String? {
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        return await performReviewAction(pr: pr) { api, ref in
+            _ = try await api.createReview(owner: ref.owner, repo: ref.repo, number: pr.number, event: .approve, body: trimmed.isEmpty ? nil : trimmed)
+            return L("承認しました")
+        }
+    }
+
+    /// Requests changes on the pull request. Requires non-empty text —
+    /// GitHub rejects a `REQUEST_CHANGES` review with no body.
+    func requestChanges(on pr: PullRequest, body: String) async -> String? {
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            reviewActionErrorMessage = L("コメントを入力してください")
+            return nil
+        }
+        return await performReviewAction(pr: pr) { api, ref in
+            _ = try await api.createReview(owner: ref.owner, repo: ref.repo, number: pr.number, event: .requestChanges, body: trimmed)
+            return L("変更をリクエストしました")
+        }
+    }
+
+    /// Shared plumbing for the three review actions above: guards on having
+    /// a loaded repo/token, tracks the in-flight flag, reloads the
+    /// review/comment lists on success, and normalizes the error message on
+    /// failure. `action` performs the actual API call and returns the
+    /// success toast text.
+    private func performReviewAction(
+        pr: PullRequest,
+        _ action: (GitHubAPI, GitHubRepositoryRef) async throws -> String
+    ) async -> String? {
+        guard let ref = currentRef, let token = currentToken else { return nil }
+        isSubmittingReviewAction = true
+        reviewActionErrorMessage = nil
+        defer { isSubmittingReviewAction = false }
+
+        let api = GitHubAPI(token: token)
+        do {
+            let successMessage = try await action(api, ref)
+            await reloadReviewsAndComments(pr: pr, api: api, ref: ref)
+            return successMessage
+        } catch {
+            reviewActionErrorMessage = Self.errorDetail(for: error)
+            return nil
+        }
+    }
+
+    private func reloadReviewsAndComments(pr: PullRequest, api: GitHubAPI, ref: GitHubRepositoryRef) async {
+        async let reviewsResult = try? api.reviews(owner: ref.owner, repo: ref.repo, number: pr.number)
+        async let commentsResult = try? api.issueComments(owner: ref.owner, repo: ref.repo, number: pr.number)
+        let loadedReviews = await reviewsResult ?? []
+        let loadedComments = await commentsResult ?? []
+        guard selectedPullRequest?.number == pr.number else { return }
+        reviews = loadedReviews
+        comments = loadedComments
+    }
+
+    private static func errorDetail(for error: Error) -> String {
+        (error as? GitHubAPI.APIError)?.errorDescription ?? error.localizedDescription
     }
 
     // MARK: - Per-row CI status fan-out

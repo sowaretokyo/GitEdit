@@ -32,6 +32,22 @@ extension GitHubAPI {
         static func create(owner: String, repo: String) -> String {
             "/repos/\(owner)/\(repo)/pulls"
         }
+
+        static func reviews(owner: String, repo: String, number: Int) -> String {
+            "/repos/\(owner)/\(repo)/pulls/\(number)/reviews"
+        }
+
+        static func createReview(owner: String, repo: String, number: Int) -> String {
+            "/repos/\(owner)/\(repo)/pulls/\(number)/reviews"
+        }
+
+        static func issueComments(owner: String, repo: String, number: Int) -> String {
+            "/repos/\(owner)/\(repo)/issues/\(number)/comments"
+        }
+
+        static func createIssueComment(owner: String, repo: String, number: Int) -> String {
+            "/repos/\(owner)/\(repo)/issues/\(number)/comments"
+        }
     }
 
     struct CreatePullRequestBody: Encodable, Equatable {
@@ -39,6 +55,15 @@ extension GitHubAPI {
         let head: String
         let base: String
         let body: String?
+    }
+
+    struct CreateReviewBody: Encodable, Equatable {
+        let event: String
+        let body: String?
+    }
+
+    struct CreateIssueCommentBody: Encodable, Equatable {
+        let body: String
     }
 
     /// The 50 most recently updated open PRs. GitHub caps `per_page` at 100;
@@ -96,6 +121,60 @@ extension GitHubAPI {
             path: PullRequestRequests.create(owner: owner, repo: repo),
             body: data,
             as: PullRequest.self,
+            requiredScope: "repo"
+        ).value
+    }
+
+    // MARK: - Reviews & comments
+
+    func reviews(owner: String, repo: String, number: Int) async throws -> [PullRequestReview] {
+        try await send(
+            method: "GET",
+            path: PullRequestRequests.reviews(owner: owner, repo: repo, number: number),
+            as: [PullRequestReview].self
+        ).value
+    }
+
+    func issueComments(owner: String, repo: String, number: Int) async throws -> [IssueComment] {
+        try await send(
+            method: "GET",
+            path: PullRequestRequests.issueComments(owner: owner, repo: repo, number: number),
+            as: [IssueComment].self
+        ).value
+    }
+
+    /// Submits a formal review (approve / request changes / comment-only).
+    /// `body` is trimmed and sent as `nil` when empty — GitHub requires a
+    /// body for `.requestChanges` and `.comment`, which the caller validates
+    /// before reaching here.
+    func createReview(
+        owner: String,
+        repo: String,
+        number: Int,
+        event: ReviewEvent,
+        body: String?
+    ) async throws -> PullRequestReview {
+        let trimmedBody = body?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let payload = CreateReviewBody(event: event.rawValue, body: (trimmedBody?.isEmpty ?? true) ? nil : trimmedBody)
+        let data = try JSONEncoder().encode(payload)
+        return try await send(
+            method: "POST",
+            path: PullRequestRequests.createReview(owner: owner, repo: repo, number: number),
+            body: data,
+            as: PullRequestReview.self,
+            requiredScope: "repo"
+        ).value
+    }
+
+    /// Posts a plain conversation comment (not tied to review state).
+    func createIssueComment(owner: String, repo: String, number: Int, body: String) async throws -> IssueComment {
+        let payload = CreateIssueCommentBody(body: body)
+        let data = try JSONEncoder().encode(payload)
+        return try await send(
+            method: "POST",
+            path: PullRequestRequests.createIssueComment(owner: owner, repo: repo, number: number),
+            body: data,
+            as: IssueComment.self,
             requiredScope: "repo"
         ).value
     }

@@ -56,4 +56,57 @@ final class GitHubPullRequestRequestTests: XCTestCase {
         XCTAssertNil(object?["body"])
         XCTAssertEqual(object?["title"] as? String, "Add feature")
     }
+
+    // MARK: - Reviews & comments (L3)
+
+    func testReviewsPath() {
+        XCTAssertEqual(
+            GitHubAPI.PullRequestRequests.reviews(owner: "octo", repo: "cat", number: 42),
+            "/repos/octo/cat/pulls/42/reviews"
+        )
+    }
+
+    func testCreateReviewPath() {
+        XCTAssertEqual(
+            GitHubAPI.PullRequestRequests.createReview(owner: "octo", repo: "cat", number: 42),
+            "/repos/octo/cat/pulls/42/reviews"
+        )
+    }
+
+    func testIssueCommentsPath() {
+        XCTAssertEqual(
+            GitHubAPI.PullRequestRequests.issueComments(owner: "octo", repo: "cat", number: 42),
+            "/repos/octo/cat/issues/42/comments"
+        )
+    }
+
+    func testCreateIssueCommentPath() {
+        XCTAssertEqual(
+            GitHubAPI.PullRequestRequests.createIssueComment(owner: "octo", repo: "cat", number: 42),
+            "/repos/octo/cat/issues/42/comments"
+        )
+    }
+
+    func testCreateReviewBodyEncodesEventAndBody() throws {
+        let body = GitHubAPI.CreateReviewBody(event: ReviewEvent.requestChanges.rawValue, body: "Please fix the tests")
+        let data = try JSONEncoder().encode(body)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertEqual(object?["event"] as? String, "REQUEST_CHANGES")
+        XCTAssertEqual(object?["body"] as? String, "Please fix the tests")
+    }
+
+    func testCreateReviewBodyOmitsNilBody() throws {
+        let body = GitHubAPI.CreateReviewBody(event: ReviewEvent.approve.rawValue, body: nil)
+        let data = try JSONEncoder().encode(body)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertEqual(object?["event"] as? String, "APPROVE")
+        XCTAssertNil(object?["body"])
+    }
+
+    func testCreateIssueCommentBodyEncodesBody() throws {
+        let body = GitHubAPI.CreateIssueCommentBody(body: "Thanks!")
+        let data = try JSONEncoder().encode(body)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertEqual(object?["body"] as? String, "Thanks!")
+    }
 }

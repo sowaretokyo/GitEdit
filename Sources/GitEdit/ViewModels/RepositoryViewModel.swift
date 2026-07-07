@@ -70,6 +70,37 @@ final class RepositoryViewModel: ObservableObject {
 
     var isBusy: Bool { isFetching || isPulling || isPushing }
 
+    // MARK: - Issue links
+
+    /// The GitHub repository resolved from `origin`'s fetch URL, or the
+    /// first remote that resolves to a GitHub URL if there's no `origin`.
+    var githubRepository: GitHubRepositoryRef? {
+        if let originRemote = remotes.first(where: { $0.name == "origin" }),
+           let fetchURL = originRemote.fetchURL,
+           let ref = GitHubRemoteParser.parse(remoteURL: fetchURL) {
+            return ref
+        }
+        for remote in remotes {
+            if let fetchURL = remote.fetchURL,
+               let ref = GitHubRemoteParser.parse(remoteURL: fetchURL) {
+                return ref
+            }
+        }
+        return nil
+    }
+
+    /// The GitHub issue URL encoded in the current branch's name (e.g.
+    /// `123-fix-bug`). `nil` when there's no recognized GitHub remote, no
+    /// current branch, or the branch name doesn't encode an issue number.
+    var branchIssueURL: URL? {
+        guard let repo = githubRepository,
+              let branchName = currentBranchName,
+              let number = IssueReferenceDetector.issueNumber(inBranch: branchName) else {
+            return nil
+        }
+        return repo.issueURL(number)
+    }
+
     // MARK: - Bootstrap & refresh
 
     func bootstrap() async {

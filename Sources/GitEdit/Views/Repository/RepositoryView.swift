@@ -106,6 +106,9 @@ struct RepositoryView: View {
             ToolbarItem(placement: .navigation) {
                 BranchPicker(repoVM: repoVM)
             }
+            ToolbarItem(placement: .navigation) {
+                BranchIssueLink(repoVM: repoVM)
+            }
             ToolbarItemGroup(placement: .primaryAction) {
                 NetworkOpsToolbarItems(repoVM: repoVM)
             }
@@ -269,7 +272,7 @@ struct RepositoryView: View {
             ChangesDetailPane(viewModel: changesVM, repoVM: repoVM)
         case .history:
             if let commit = historyVM.selectedCommit {
-                CommitDetailView(commit: commit, viewModel: historyVM)
+                CommitDetailView(commit: commit, viewModel: historyVM, issueRepository: repoVM.githubRepository)
             } else {
                 pickCommitPrompt
             }
@@ -636,6 +639,28 @@ struct NetworkOpsToolbarItems: View {
                         .offset(x: 6, y: -4)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Branch Issue Link (toolbar shortcut)
+
+/// Toolbar shortcut to the GitHub issue referenced by the current branch's
+/// name (e.g. branch `123-fix-bug` links to issue #123). Hidden entirely
+/// when there's no recognized GitHub remote or the branch name doesn't
+/// encode an issue number.
+private struct BranchIssueLink: View {
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    var body: some View {
+        if let url = repoVM.branchIssueURL, let number = Int(url.lastPathComponent) {
+            Link(destination: url) {
+                Image(systemName: "arrow.up.forward.square")
+            }
+            .help(L("Issue #%d を開く", number))
+            .accessibilityLabel(L("Issue #%d を開く", number))
+        } else {
+            EmptyView()
         }
     }
 }

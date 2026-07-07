@@ -85,6 +85,7 @@ struct RepositoryView: View {
         .onChange(of: changesVM.commitVersion) { _, _ in
             Task {
                 await repoVM.refreshBranchInfo()
+                await repoVM.refreshUndoState()
                 if selectedTab == .history {
                     await historyVM.load()
                 }
@@ -105,6 +106,9 @@ struct RepositoryView: View {
             }
             ToolbarItem(placement: .navigation) {
                 BranchPicker(repoVM: repoVM)
+            }
+            ToolbarItem(placement: .navigation) {
+                UndoToolbarButton(repoVM: repoVM)
             }
             ToolbarItem(placement: .primaryAction) {
                 StashToolbarButton(repoVM: repoVM)
@@ -157,6 +161,7 @@ struct RepositoryView: View {
         }
         .modifier(BranchActionDialogs(repoVM: repoVM))
         .modifier(StashActionDialogs(repoVM: repoVM))
+        .modifier(UndoActionDialogs(repoVM: repoVM))
         .overlay(alignment: .bottomTrailing) {
             OperationFeedbackBanner(repoVM: repoVM)
         }
@@ -445,6 +450,83 @@ private struct StashActionDialogs: ViewModifier {
     }
 }
 
+// MARK: - Undo action dialogs (confirm / blocked notice)
+
+/// Extracted for the same reason as `BranchActionDialogs` / `StashActionDialogs`.
+private struct UndoActionDialogs: ViewModifier {
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                undoTitle(repoVM.pendingUndo),
+                isPresented: Binding(
+                    get: { repoVM.pendingUndo != nil },
+                    set: { if !$0 { repoVM.cancelUndo() } }
+                ),
+                presenting: repoVM.pendingUndo
+            ) { op in
+                Button(L("取り消す"), role: destructiveRole(op)) {
+                    Task { await repoVM.confirmUndo() }
+                }
+                Button(L("キャンセル"), role: .cancel) {
+                    repoVM.cancelUndo()
+                }
+            } message: { op in
+                Text(undoMessage(op))
+            }
+            .confirmationDialog(
+                L("この操作は取り消せません"),
+                isPresented: Binding(
+                    get: { repoVM.undoBlockedMessage != nil },
+                    set: { if !$0 { repoVM.dismissUndoBlocked() } }
+                )
+            ) {
+                Button(L("閉じる"), role: .cancel) {
+                    repoVM.dismissUndoBlocked()
+                }
+            } message: {
+                Text(repoVM.undoBlockedMessage ?? "")
+            }
+    }
+
+    private func destructiveRole(_ op: UndoableOperation) -> ButtonRole? {
+        op.requiresHardReset && repoVM.hasUncommittedChanges ? .destructive : nil
+    }
+
+    private func undoTitle(_ op: UndoableOperation?) -> String {
+        guard let op else { return "" }
+        switch op {
+        case .commit(let summary, _):
+            return L("コミット『%@』を取り消しますか？", summary)
+        case .amendCommit:
+            return L("直前の修正（amend）を取り消しますか？")
+        case .mergeCommit(let summary, _):
+            return L("マージ『%@』を取り消しますか？", summary)
+        case .branchSwitch:
+            return L("ブランチ切替を取り消しますか？")
+        }
+    }
+
+    private func undoMessage(_ op: UndoableOperation) -> String {
+        var message: String
+        switch op {
+        case .commit:
+            message = L("このコミットを取り消し、変更はステージされた状態に戻します。")
+        case .amendCommit:
+            message = L("amend を取り消し、修正前のコミットに戻します。")
+        case .mergeCommit:
+            message = L("このマージを取り消し、マージ前の状態に戻します。")
+        case .branchSwitch(let from, _):
+            message = L("「%@」に戻ります。", from)
+        }
+        if op.requiresHardReset, repoVM.hasUncommittedChanges {
+            message += L("未コミットの変更は失われます。")
+        }
+        return message
+    }
+}
+
 // MARK: - Operation Feedback Banner (extracted from old RepositoryDetailView)
 
 struct OperationFeedbackBanner: View {
@@ -619,6 +701,26 @@ struct StashToolbarButton: View {
                     .offset(x: 6, y: -4)
             }
         }
+    }
+}
+
+// MARK: - Undo Toolbar Button
+
+struct UndoToolbarButton: View {
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    var body: some View {
+        Button {
+            repoVM.requestUndo()
+        } label: {
+            Label(L("直前の操作を取り消す"), systemImage: "arrow.uturn.backward")
+        }
+        .help(
+            repoVM.undoState == .none
+                ? L("取り消せる操作はありません（作業ツリーの変更・退避・プッシュ済みの操作は取り消し対象外）")
+                : L("直前の操作を取り消す")
+        )
+        .disabled(repoVM.undoState == .none)
     }
 }
 

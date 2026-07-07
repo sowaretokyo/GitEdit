@@ -178,6 +178,9 @@
 "「%@」にはまだマージされていない変更があります。強制削除するとこれらのコミットは失われる可能性があります。" = "\"%@\" has changes that haven't been merged yet. Force-deleting may lose those commits.";
 "強制削除" = "Force Delete";
 
+/* ===== Issue links ===== */
+"Issue #%d を開く" = "Open issue #%d";
+
 /* ===== Merge conflict resolution ===== */
 "マージを完了しました" = "Merge completed";
 "マージを中止しました" = "Merge aborted";

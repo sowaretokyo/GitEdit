@@ -16,6 +16,10 @@ final class HistoryViewModel: ObservableObject {
     @Published var commitFiles: [FileChange] = []
     @Published var selectedCommitFilePath: String?
     @Published var commitFileDiff: String = ""
+    /// Set instead of `commitFileDiff` when the selected file is an image.
+    /// `nil` for non-image files (and for images with no decodable content
+    /// on either side).
+    @Published var commitImageDiff: ImageDiffContent?
     @Published var isLoadingCommitFiles: Bool = false
     @Published var isLoadingCommitFileDiff: Bool = false
 
@@ -87,10 +91,22 @@ final class HistoryViewModel: ObservableObject {
     private func loadDiffForSelectedFile(commitID: String) async {
         guard let path = selectedCommitFilePath else {
             commitFileDiff = ""
+            commitImageDiff = nil
             return
         }
         isLoadingCommitFileDiff = true
         defer { isLoadingCommitFileDiff = false }
+
+        if ImageDiff.isImagePath(path), let file = selectedCommitFile {
+            let before = file.category == .added ? nil : await git.showFileData(rev: "\(commitID)^", path: path)
+            let after = file.category == .deleted ? nil : await git.showFileData(rev: commitID, path: path)
+            let content = ImageDiffContent(before: before, after: after)
+            commitImageDiff = content.hasAny ? content : nil
+            commitFileDiff = ""
+            return
+        }
+        commitImageDiff = nil
+
         do {
             commitFileDiff = try await git.diffForFile(in: commitID, path: path)
         } catch {

@@ -8,6 +8,8 @@ struct DiffView: View {
     /// already shows the same path, like in `DiffEditView`).
     var showsHeader: Bool = true
 
+    @AppStorage(DiffDisplayStyle.storageKey) private var diffStyle: DiffDisplayStyle = .unified
+
     var body: some View {
         VStack(spacing: 0) {
             if showsHeader {
@@ -28,6 +30,7 @@ struct DiffView: View {
                 .truncationMode(.middle)
                 .foregroundStyle(selectedFile == nil ? .tertiary : .primary)
             Spacer()
+            DiffStylePicker(style: $diffStyle)
         }
         .padding(.horizontal, DT.Space.md)
         .padding(.vertical, DT.Space.sm + 2)
@@ -49,17 +52,43 @@ struct DiffView: View {
         } else if diffText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             EmptyStateView(icon: "equal.circle", title: L("差分なし"))
         } else {
-            ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    let parsed = DiffParser.parse(diffText)
-                    ForEach(parsed.indices, id: \.self) { idx in
-                        DiffLineRow(line: parsed[idx])
+            let parsed = DiffParser.parse(diffText)
+            switch diffStyle {
+            case .unified:
+                ScrollView(.vertical) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(parsed.indices, id: \.self) { idx in
+                            DiffLineRow(line: parsed[idx])
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .textBackgroundColor))
+            case .split:
+                SplitDiffView(rows: SplitDiffBuilder.rows(from: parsed))
             }
-            .background(Color(nsColor: .textBackgroundColor))
         }
+    }
+}
+
+// MARK: - Style picker
+
+/// Segmented toggle between unified and side-by-side diff rendering.
+/// Persisted app-wide via `DiffDisplayStyle`'s `@AppStorage` key.
+struct DiffStylePicker: View {
+    @Binding var style: DiffDisplayStyle
+
+    var body: some View {
+        Picker("", selection: $style) {
+            ForEach(DiffDisplayStyle.allCases) { style in
+                Text(style.title).tag(style)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .controlSize(.small)
+        .frame(width: 130)
+        .help(L("差分の表示形式"))
     }
 }
 
@@ -142,13 +171,15 @@ enum DiffParser {
 struct DiffLineRow: View {
     let line: DiffLine
 
-    private static let gutterWidth: CGFloat = 44
+    static let gutterWidth: CGFloat = 44
     private static let markerWidth: CGFloat = 16
 
-    private var addedBackground: Color { Color(nsColor: .systemGreen).opacity(0.12) }
-    private var removedBackground: Color { Color(nsColor: .systemRed).opacity(0.12) }
-    private var addedGutterTint: Color { Color(nsColor: .systemGreen) }
-    private var removedGutterTint: Color { Color(nsColor: .systemRed) }
+    /// Shared with `SplitDiffRowView` so unified and split rendering stay
+    /// visually consistent.
+    static let addedBackground = Color(nsColor: .systemGreen).opacity(0.12)
+    static let removedBackground = Color(nsColor: .systemRed).opacity(0.12)
+    static let addedGutterTint = Color(nsColor: .systemGreen)
+    static let removedGutterTint = Color(nsColor: .systemRed)
 
     var body: some View {
         switch line {
@@ -177,27 +208,27 @@ struct DiffLineRow: View {
 
         case .added(let content, let newLine):
             HStack(spacing: 0) {
-                gutterCell(text: "", tint: addedGutterTint)
-                gutterCell(text: "\(newLine)", tint: addedGutterTint)
-                marker(symbol: "+", color: addedGutterTint)
+                gutterCell(text: "", tint: Self.addedGutterTint)
+                gutterCell(text: "\(newLine)", tint: Self.addedGutterTint)
+                marker(symbol: "+", color: Self.addedGutterTint)
                 Text(content)
                     .font(.system(.callout, design: .monospaced))
                     .padding(.leading, DT.Space.xs)
                 Spacer(minLength: 0)
             }
-            .background(addedBackground)
+            .background(Self.addedBackground)
 
         case .removed(let content, let oldLine):
             HStack(spacing: 0) {
-                gutterCell(text: "\(oldLine)", tint: removedGutterTint)
-                gutterCell(text: "", tint: removedGutterTint)
-                marker(symbol: "−", color: removedGutterTint)
+                gutterCell(text: "\(oldLine)", tint: Self.removedGutterTint)
+                gutterCell(text: "", tint: Self.removedGutterTint)
+                marker(symbol: "−", color: Self.removedGutterTint)
                 Text(content)
                     .font(.system(.callout, design: .monospaced))
                     .padding(.leading, DT.Space.xs)
                 Spacer(minLength: 0)
             }
-            .background(removedBackground)
+            .background(Self.removedBackground)
 
         case .context(let content, let oldLine, let newLine):
             HStack(spacing: 0) {
@@ -227,5 +258,97 @@ struct DiffLineRow: View {
             .font(.system(.caption, design: .monospaced).weight(.bold))
             .foregroundStyle(color)
             .frame(width: Self.markerWidth, alignment: .center)
+    }
+}
+
+// MARK: - Split (side-by-side) rendering
+
+/// Renders `SplitRow`s (built by `SplitDiffBuilder`) as two columns divided
+/// by a vertical rule. Long lines wrap rather than scroll horizontally —
+/// keeping the two sides' scroll positions in sync for a wrapped, variable-
+/// height layout isn't worth the complexity this early on.
+struct SplitDiffView: View {
+    let rows: [SplitRow]
+
+    var body: some View {
+        ScrollView(.vertical) {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(rows.indices, id: \.self) { idx in
+                    SplitDiffRowView(row: rows[idx])
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color(nsColor: .textBackgroundColor))
+    }
+}
+
+struct SplitDiffRowView: View {
+    let row: SplitRow
+
+    var body: some View {
+        switch row {
+        case .fileHeader(let s):
+            fullWidthRow(text: s, background: Color(nsColor: .controlBackgroundColor).opacity(0.6), foreground: .secondary, weight: .regular)
+
+        case .hunkHeader(let s):
+            fullWidthRow(text: s, background: Color.accentColor.opacity(0.08), foreground: .tint, weight: .medium)
+
+        case .pair(let left, let right):
+            HStack(alignment: .top, spacing: 0) {
+                cell(left)
+                Divider()
+                cell(right)
+            }
+        }
+    }
+
+    private func fullWidthRow<S: ShapeStyle>(text: String, background: Color, foreground: S, weight: Font.Weight) -> some View {
+        Text(text)
+            .font(.system(.caption, design: .monospaced).weight(weight))
+            .foregroundStyle(foreground)
+            .padding(.horizontal, DT.Space.md)
+            .padding(.vertical, 3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(background)
+    }
+
+    @ViewBuilder
+    private func cell(_ cell: SplitCell?) -> some View {
+        HStack(spacing: 0) {
+            Text(cell.map { "\($0.number)" } ?? "")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(gutterTint(for: cell))
+                .frame(width: DiffLineRow.gutterWidth, alignment: .trailing)
+                .padding(.trailing, 8)
+                .padding(.vertical, 1)
+                .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
+            Text(cell?.text ?? "")
+                .font(.system(.callout, design: .monospaced))
+                .padding(.leading, DT.Space.xs)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        // Stretches each cell to the row's full height (the taller of the two
+        // sides) so a wrapped line's background doesn't stop short partway
+        // down the row.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(background(for: cell))
+    }
+
+    private func gutterTint(for cell: SplitCell?) -> Color {
+        switch cell?.kind {
+        case .added: return DiffLineRow.addedGutterTint
+        case .removed: return DiffLineRow.removedGutterTint
+        case .context: return .secondary
+        case nil: return .clear
+        }
+    }
+
+    private func background(for cell: SplitCell?) -> Color {
+        switch cell?.kind {
+        case .added: return DiffLineRow.addedBackground
+        case .removed: return DiffLineRow.removedBackground
+        case .context, nil: return .clear
+        }
     }
 }

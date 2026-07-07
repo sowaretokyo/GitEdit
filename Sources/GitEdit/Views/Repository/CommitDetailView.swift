@@ -163,11 +163,16 @@ struct CommitDetailView: View {
 
     // MARK: - Diff
 
+    @ViewBuilder
     private var fileDiff: some View {
-        DiffView(
-            diffText: viewModel.commitFileDiff,
-            isLoading: viewModel.isLoadingCommitFileDiff,
-            selectedFile: viewModel.selectedCommitFile?.displayPath
-        )
+        if let imageDiff = viewModel.commitImageDiff {
+            ImageDiffView(content: imageDiff)
+        } else {
+            DiffView(
+                diffText: viewModel.commitFileDiff,
+                isLoading: viewModel.isLoadingCommitFileDiff,
+                selectedFile: viewModel.selectedCommitFile?.displayPath
+            )
+        }
     }
 }

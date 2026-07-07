@@ -6,6 +6,8 @@ import SwiftUI
 struct DiffEditView: View {
     @ObservedObject var viewModel: ChangesViewModel
 
+    @AppStorage(DiffDisplayStyle.storageKey) private var diffStyle: DiffDisplayStyle = .unified
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -35,11 +37,16 @@ struct DiffEditView: View {
 
             Spacer()
 
-            if let change = viewModel.selectedChange, viewModel.selectedFileIsEditable {
-                if viewModel.editorViewMode == .edit {
-                    saveButton(change: change)
+            if let change = viewModel.selectedChange {
+                if viewModel.selectedFileIsEditable {
+                    if viewModel.editorViewMode == .edit {
+                        saveButton(change: change)
+                    }
+                    modePicker
                 }
-                modePicker
+                if showsDiffStylePicker(for: change) {
+                    DiffStylePicker(style: $diffStyle)
+                }
             }
         }
         .padding(.horizontal, DT.Space.md)
@@ -91,6 +98,8 @@ struct DiffEditView: View {
         if let change = viewModel.selectedChange {
             if viewModel.selectedFileIsEditable && viewModel.editorViewMode == .edit {
                 editor(change: change)
+            } else if let imageDiff = viewModel.imageDiff {
+                ImageDiffView(content: imageDiff)
             } else if canUseHunkStaging(for: change) {
                 HunkStagingDiffView(viewModel: viewModel, path: change.path)
             } else {
@@ -120,6 +129,16 @@ struct DiffEditView: View {
         guard !change.isUntracked, change.renameFrom == nil else { return false }
         guard let unstaged = viewModel.unstagedDiff, let staged = viewModel.stagedDiff else { return false }
         return !unstaged.isBinary && !staged.isBinary
+    }
+
+    /// The unified/split toggle only makes sense for the read-only text-diff
+    /// branch of `content` — hide it while editing, viewing an image diff, or
+    /// using the hunk-staging view (which stays unified).
+    private func showsDiffStylePicker(for change: FileChange) -> Bool {
+        guard viewModel.editorViewMode != .edit else { return false }
+        guard viewModel.imageDiff == nil else { return false }
+        guard !canUseHunkStaging(for: change) else { return false }
+        return true
     }
 
     @ViewBuilder

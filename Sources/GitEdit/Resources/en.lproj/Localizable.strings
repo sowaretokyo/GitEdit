@@ -420,3 +420,14 @@
 "退避の復元に失敗しました" = "Failed to apply stash";
 "退避の削除" = "Delete Stash";
 "退避の削除に失敗しました" = "Failed to delete stash";
+
+/* ===== Diff display (unified/split + image diff) ===== */
+"統合" = "Unified";
+"分割" = "Split";
+"差分の表示形式" = "Diff display style";
+"変更前" = "Before";
+"変更後" = "After";
+"新規追加された画像" = "Newly added image";
+"削除された画像" = "Deleted image";
+"画像を表示できません" = "Can't display this image";
+"%d × %d ピクセル" = "%d × %d px";

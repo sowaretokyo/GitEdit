@@ -10,10 +10,10 @@ struct CommitMessageEditor: View {
 
     private var canCommit: Bool {
         let trimmedMessage = viewModel.commitMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmedMessage.isEmpty
-            && viewModel.selectedChange != nil
-            && viewModel.stagedCount > 0
-            && !viewModel.isCommitting
+        guard !trimmedMessage.isEmpty, !viewModel.isCommitting else { return false }
+        // Amending allows a message-only reword with nothing staged.
+        if viewModel.isAmending { return true }
+        return viewModel.selectedChange != nil && viewModel.stagedCount > 0
     }
 
     private var branchLabel: String {
@@ -24,6 +24,7 @@ struct CommitMessageEditor: View {
         VStack(alignment: .leading, spacing: DT.Space.sm) {
             summaryRow
             descriptionField
+            amendToggle
             commitButton
         }
     }
@@ -98,6 +99,34 @@ struct CommitMessageEditor: View {
         )
     }
 
+    // MARK: - Amend toggle
+
+    @ViewBuilder
+    private var amendToggle: some View {
+        if viewModel.amendAvailability != .noCommit {
+            VStack(alignment: .leading, spacing: 2) {
+                Toggle(isOn: Binding(
+                    get: { viewModel.isAmending },
+                    set: { viewModel.setAmending($0) }
+                )) {
+                    Text(L("直前のコミットを修正"))
+                        .font(.callout)
+                }
+                .toggleStyle(.checkbox)
+                .disabled(viewModel.amendAvailability == .pushed)
+                .help(L("直前のコミットに変更内容とメッセージを反映します"))
+
+                if viewModel.amendAvailability == .pushed {
+                    // .help() tooltips don't show on disabled controls, so the
+                    // block reason needs to be visible text instead.
+                    Text(L("プッシュ済みのコミットは修正できません"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
     // MARK: - Full-width commit button
 
     private var commitButton: some View {
@@ -131,6 +160,9 @@ struct CommitMessageEditor: View {
     }
 
     private var commitLabel: String {
+        if viewModel.isAmending {
+            return L("直前のコミットを修正")
+        }
         let n = max(viewModel.stagedCount, 0)
         return L("%d 件を %@ にコミット", n, branchLabel)
     }

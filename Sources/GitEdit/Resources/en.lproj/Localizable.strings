@@ -127,6 +127,9 @@
 "コミットメッセージ（↑↓ で過去のメッセージを呼び出し）" = "Commit message (↑↓ recalls history)";
 "↑↓ で履歴" = "↑↓ for history";
 "ステージされた変更がありません。チェックボックスでファイルを含めてください。" = "Nothing is staged. Use the checkboxes to include files.";
+"直前のコミットを修正" = "Amend last commit";
+"プッシュ済みのコミットは修正できません" = "A pushed commit can't be amended";
+"直前のコミットに変更内容とメッセージを反映します" = "Applies your staged changes and message to the last commit";
 
 /* ===== History view ===== */
 "コミット履歴" = "Commit History";
@@ -171,6 +174,10 @@
 "未プッシュのブランチ" = "Unpushed branch";
 "このブランチはまだプッシュされていません" = "This branch hasn't been pushed yet";
 "コマンドの実行に失敗しました" = "Command failed";
+"リモートと分岐しています" = "Your branch has diverged from the remote";
+"リモートにローカルとは別のコミットがあります。マージして取り込みますか？" = "The remote has commits that aren't in your branch. Merge them in?";
+"マージして取り込む" = "Merge and integrate";
+"マージしてプルしました" = "Merged and pulled";
 
 /* ===== Create branch ===== */
 "新しいブランチ" = "New Branch";
@@ -305,7 +312,7 @@
 "現在どのブランチにもいません。先にブランチを作成または切り替えてから操作してください。" = "You're not on any branch right now. Create or switch to a branch first.";
 "リモートホストの SSH 鍵が `known_hosts` に登録されていないか、変更されています。一度ターミナルから接続して鍵を受け入れてください。" = "The remote host's SSH key isn't in `known_hosts`, or it has changed. Connect once from the terminal to accept the key.";
 "前回のマージがまだ完了していません。競合を解消してコミットするか、マージを中止してから再操作してください。" = "A previous merge hasn't finished yet. Resolve the conflicts and commit, or abort the merge before retrying.";
-"Fast-forward でプルできません。ローカルにリモートにないコミットがあるため、マージかリベースが必要です。" = "Pull can't fast-forward — you have local commits the remote doesn't. You'll need to merge or rebase.";
+"Fast-forward でプルできません。ローカルにリモートにないコミットがあるため、マージが必要です。" = "Pull can't fast-forward — you have local commits the remote doesn't, so a merge is needed.";
 "リモートリポジトリが見つからないか、アクセス権がありません。URL とアクセス権限を確認してください。" = "Couldn't find the remote repository, or you don't have access. Double-check the URL and your permissions.";
 "詳細はログをご確認ください。" = "Please check the log for details.";
 

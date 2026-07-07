@@ -36,6 +36,7 @@ final class RepositoryViewModel: ObservableObject {
     // MARK: - Sheet states
     @Published var isShowingCreateBranchSheet: Bool = false
     @Published var pendingSwitchBranch: Branch?  // confirmation dialog for switch with dirty tree
+    @Published var pendingMergePull: Bool = false  // confirmation dialog for pull with diverged history
 
     let git: GitClient
 
@@ -256,8 +257,36 @@ final class RepositoryViewModel: ObservableObject {
             bumpDataVersion()
             operationSuccess = L("プルが完了しました")
         } catch {
+            // Diverged history isn't a failure the user needs an error banner
+            // for — offer the merge-pull confirmation instead.
+            let classified = GitErrorClassifier.classify(error, operation: .pull)
+            if classified.kind == .divergedHistory {
+                pendingMergePull = true
+            } else {
+                operationError = classified
+            }
+        }
+    }
+
+    /// Confirmed from the diverged-history dialog: merge the remote in via a
+    /// regular (non-fast-forward) pull.
+    func confirmMergePull() async {
+        pendingMergePull = false
+        guard !isPulling else { return }
+        isPulling = true
+        defer { isPulling = false }
+        do {
+            try await git.pullMerge()
+            await refresh()
+            bumpDataVersion()
+            operationSuccess = L("マージしてプルしました")
+        } catch {
             report(error, operation: .pull)
         }
+    }
+
+    func cancelMergePull() {
+        pendingMergePull = false
     }
 
     func push() async {

@@ -292,6 +292,13 @@ final class GitClient: @unchecked Sendable {
         }
     }
 
+    /// Rewrites HEAD in place with whatever is currently staged plus `message`.
+    func amendCommit(message: String) async throws {
+        try await runClassified(operation: .commit) {
+            try await self.run("commit", "--amend", "-m", message)
+        }
+    }
+
     // MARK: - Diff
 
     func diffAgainstHEAD(path: String) async throws -> String {
@@ -468,6 +475,31 @@ final class GitClient: @unchecked Sendable {
         return Set(shas)
     }
 
+    /// The HEAD commit's subject/body, or nil if there is no commit yet.
+    func headCommitMessage() async -> (summary: String, body: String)? {
+        let sep = "\u{1F}"
+        guard let raw = try? await run("log", "-1", "--format=%s\(sep)%b") else { return nil }
+        return Self.parseHeadMessage(raw, separator: sep)
+    }
+
+    /// Splits `git log --format=%s<sep>%b` output into subject and body.
+    static func parseHeadMessage(_ raw: String, separator sep: String) -> (summary: String, body: String)? {
+        let parts = raw.components(separatedBy: sep)
+        guard let first = parts.first else { return nil }
+        return (
+            first.trimmingCharacters(in: .whitespacesAndNewlines),
+            parts.dropFirst().joined(separator: sep).trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    /// True when HEAD exists and hasn't been pushed to any remote yet.
+    func isHeadUnpushed() async -> Bool {
+        guard let head = try? await run("rev-parse", "HEAD")
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !head.isEmpty else { return false }
+        return await unpushedCommitSHAs().contains(head)
+    }
+
     // MARK: - Branches
 
     func listLocalBranches() async throws -> [Branch] {
@@ -587,6 +619,14 @@ final class GitClient: @unchecked Sendable {
     func pull(remote: String = "origin") async throws {
         try await runClassified(operation: .pull) {
             try await self.run("pull", "--ff-only", "--progress", remote)
+        }
+    }
+
+    /// Pull that merges instead of fast-forwarding, for when the caller has
+    /// already confirmed diverged local/remote histories should be combined.
+    func pullMerge(remote: String = "origin") async throws {
+        try await runClassified(operation: .pull) {
+            try await self.run("pull", "--no-rebase", "--progress", remote)
         }
     }
 

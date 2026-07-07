@@ -130,6 +130,22 @@ struct RepositoryView: View {
         } message: { _ in
             Text(L("先に変更をコミットするか退避してから切り替えてください。"))
         }
+        .confirmationDialog(
+            L("リモートと分岐しています"),
+            isPresented: Binding(
+                get: { repoVM.pendingMergePull },
+                set: { if !$0 { repoVM.cancelMergePull() } }
+            )
+        ) {
+            Button(L("マージして取り込む")) {
+                Task { await repoVM.confirmMergePull() }
+            }
+            Button(L("キャンセル"), role: .cancel) {
+                repoVM.cancelMergePull()
+            }
+        } message: {
+            Text(L("リモートにローカルとは別のコミットがあります。マージして取り込みますか？"))
+        }
         .overlay(alignment: .bottomTrailing) {
             OperationFeedbackBanner(repoVM: repoVM)
         }

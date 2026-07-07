@@ -573,7 +573,7 @@ extension GitErrorClassifier {
             case .divergedHistory:
                 return Copy(
                     title: L("ローカルとリモートの履歴が分岐しています"),
-                    summary: L("Fast-forward でプルできません。ローカルにリモートにないコミットがあるため、マージかリベースが必要です。"),
+                    summary: L("Fast-forward でプルできません。ローカルにリモートにないコミットがあるため、マージが必要です。"),
                     suggestions: [
                         .init(label: L("フェッチして状況を確認"), action: .fetch, isPrimary: true),
                         .init(label: L("詳細をコピー"), action: .copyDetails)

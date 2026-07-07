@@ -106,12 +106,18 @@ struct RepositoryView: View {
             ToolbarItem(placement: .navigation) {
                 BranchPicker(repoVM: repoVM)
             }
+            ToolbarItem(placement: .primaryAction) {
+                StashToolbarButton(repoVM: repoVM)
+            }
             ToolbarItemGroup(placement: .primaryAction) {
                 NetworkOpsToolbarItems(repoVM: repoVM)
             }
         }
         .sheet(isPresented: $repoVM.isShowingCreateBranchSheet) {
             CreateBranchSheet(repoVM: repoVM)
+        }
+        .sheet(isPresented: $repoVM.isShowingStashSheet) {
+            StashSheet(repoVM: repoVM)
         }
         .confirmationDialog(
             L("未コミットの変更があります"),
@@ -123,6 +129,9 @@ struct RepositoryView: View {
         ) { _ in
             Button(L("このまま切り替え"), role: .destructive) {
                 Task { await repoVM.confirmSwitchAfterDirtyWarning() }
+            }
+            Button(L("変更を退避して切り替え")) {
+                Task { await repoVM.stashThenSwitchAfterDirtyWarning() }
             }
             Button(L("キャンセル"), role: .cancel) {
                 repoVM.cancelSwitchAfterDirtyWarning()
@@ -147,6 +156,7 @@ struct RepositoryView: View {
             Text(L("リモートにローカルとは別のコミットがあります。マージして取り込みますか？"))
         }
         .modifier(BranchActionDialogs(repoVM: repoVM))
+        .modifier(StashActionDialogs(repoVM: repoVM))
         .overlay(alignment: .bottomTrailing) {
             OperationFeedbackBanner(repoVM: repoVM)
         }
@@ -406,6 +416,35 @@ private struct BranchActionDialogs: ViewModifier {
     }
 }
 
+// MARK: - Stash action confirmation dialog (drop)
+
+/// Extracted for the same reason as `BranchActionDialogs`: keeps `body`'s
+/// modifier chain from growing further.
+private struct StashActionDialogs: ViewModifier {
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                L("退避を削除しますか？"),
+                isPresented: Binding(
+                    get: { repoVM.pendingStashDrop != nil },
+                    set: { if !$0 { repoVM.cancelDropStash() } }
+                ),
+                presenting: repoVM.pendingStashDrop
+            ) { _ in
+                Button(L("退避を削除"), role: .destructive) {
+                    Task { await repoVM.confirmDropStash() }
+                }
+                Button(L("キャンセル"), role: .cancel) {
+                    repoVM.cancelDropStash()
+                }
+            } message: { _ in
+                Text(L("この退避を削除すると元に戻せません。"))
+            }
+    }
+}
+
 // MARK: - Operation Feedback Banner (extracted from old RepositoryDetailView)
 
 struct OperationFeedbackBanner: View {
@@ -553,6 +592,32 @@ private struct SuccessBanner: View {
         .task {
             try? await Task.sleep(nanoseconds: 4_000_000_000)
             await MainActor.run { onDismiss() }
+        }
+    }
+}
+
+// MARK: - Stash Toolbar Button
+
+struct StashToolbarButton: View {
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    var body: some View {
+        Button {
+            repoVM.isShowingStashSheet = true
+        } label: {
+            Label(L("退避"), systemImage: "archivebox")
+        }
+        .help(L("退避した変更"))
+        .overlay(alignment: .topTrailing) {
+            if !repoVM.stashes.isEmpty {
+                Text("\(repoVM.stashes.count)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color(nsColor: .systemGray), in: Capsule())
+                    .offset(x: 6, y: -4)
+            }
         }
     }
 }

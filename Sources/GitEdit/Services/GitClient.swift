@@ -500,6 +500,46 @@ final class GitClient: @unchecked Sendable {
         return await unpushedCommitSHAs().contains(head)
     }
 
+    // MARK: - Stash
+
+    func stashList() async throws -> [StashEntry] {
+        let output = try await run("stash", "list", "--format=\(StashListParser.formatTemplate)")
+        return StashListParser.parse(output)
+    }
+
+    func stashPush(message: String?, includeUntracked: Bool) async throws {
+        try await runClassified(operation: .stash) {
+            var args = ["stash", "push"]
+            if includeUntracked { args.append("-u") }
+            if let message, !message.isEmpty { args.append(contentsOf: ["-m", message]) }
+            try await self.run(args)
+        }
+    }
+
+    /// Applies (without dropping) the stash at `selector`. On a real content
+    /// conflict, `git` writes conflict markers into the working tree, leaves
+    /// the stash in the list, and prints its `CONFLICT` details to *stdout*
+    /// (not stderr) — so callers should not rely solely on the thrown error's
+    /// message to detect a conflict; check working-tree status afterwards.
+    func stashApply(selector: String) async throws {
+        try await runClassified(operation: .stashApply) {
+            try await self.run("stash", "apply", selector)
+        }
+    }
+
+    func stashDrop(selector: String) async throws {
+        try await runClassified(operation: .stashDrop) {
+            try await self.run("stash", "drop", selector)
+        }
+    }
+
+    /// Resolves a `stash@{N}` selector to its current full SHA, so callers can
+    /// confirm a selector still refers to the stash they think it does before
+    /// a destructive follow-up (e.g. drop after pop).
+    func stashSHA(selector: String) async throws -> String {
+        try await run("rev-parse", selector).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     // MARK: - Branches
 
     func listLocalBranches() async throws -> [Branch] {

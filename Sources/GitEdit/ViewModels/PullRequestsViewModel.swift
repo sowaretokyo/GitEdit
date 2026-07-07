@@ -12,6 +12,8 @@ final class PullRequestsViewModel: ObservableObject {
     @Published private(set) var comments: [IssueComment] = []
     @Published private(set) var isSubmittingReviewAction: Bool = false
     @Published var reviewActionErrorMessage: String?
+    @Published private(set) var isMerging: Bool = false
+    @Published var mergeActionErrorMessage: String?
     /// Whether the list endpoint reported a further page (i.e. more than the
     /// 50 PRs we fetch). Drives the "上位 N 件を表示しています" footnote.
     @Published private(set) var hasMorePages: Bool = false
@@ -194,6 +196,47 @@ final class PullRequestsViewModel: ObservableObject {
 
     private static func errorDetail(for error: Error) -> String {
         (error as? GitHubAPI.APIError)?.errorDescription ?? error.localizedDescription
+    }
+
+    // MARK: - Merge
+
+    /// Merges the pull request, pinning to its current head SHA so GitHub
+    /// rejects the merge (409 → `.conflict`) if the branch moved since this
+    /// PR was last fetched. Re-fetches the PR afterwards either way, so a
+    /// stale `mergeable`/`mergeable_state` doesn't linger in the UI.
+    func mergePullRequest(_ pr: PullRequest, method: MergeMethod) async -> String? {
+        guard let ref = currentRef, let token = currentToken else { return nil }
+        isMerging = true
+        mergeActionErrorMessage = nil
+        defer { isMerging = false }
+
+        let api = GitHubAPI(token: token)
+        do {
+            _ = try await api.mergePullRequest(
+                owner: ref.owner,
+                repo: ref.repo,
+                number: pr.number,
+                method: method,
+                sha: pr.head.sha,
+                commitTitle: nil,
+                commitMessage: nil
+            )
+            await refetchAfterMerge(pr: pr, api: api, ref: ref)
+            return L("マージしました")
+        } catch {
+            mergeActionErrorMessage = Self.errorDetail(for: error)
+            await refetchAfterMerge(pr: pr, api: api, ref: ref)
+            return nil
+        }
+    }
+
+    private func refetchAfterMerge(pr: PullRequest, api: GitHubAPI, ref: GitHubRepositoryRef) async {
+        guard let updated = try? await api.pullRequest(owner: ref.owner, repo: ref.repo, number: pr.number) else { return }
+        if let index = pullRequests.firstIndex(where: { $0.number == pr.number }) {
+            pullRequests[index] = updated
+        }
+        guard selectedPullRequest?.number == pr.number else { return }
+        selectedPullRequest = updated
     }
 
     // MARK: - Per-row CI status fan-out

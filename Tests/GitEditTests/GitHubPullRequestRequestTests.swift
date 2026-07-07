@@ -109,4 +109,43 @@ final class GitHubPullRequestRequestTests: XCTestCase {
         let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         XCTAssertEqual(object?["body"] as? String, "Thanks!")
     }
+
+    // MARK: - Merge (L4)
+
+    func testMergePath() {
+        XCTAssertEqual(
+            GitHubAPI.PullRequestRequests.merge(owner: "octo", repo: "cat", number: 42),
+            "/repos/octo/cat/pulls/42/merge"
+        )
+    }
+
+    func testMergePullRequestBodyEncodesAllFields() throws {
+        let body = GitHubAPI.MergePullRequestBody(
+            mergeMethod: MergeMethod.squash.rawValue,
+            sha: "abc123",
+            commitTitle: "Squash it",
+            commitMessage: "Details here"
+        )
+        let data = try JSONEncoder().encode(body)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertEqual(object?["merge_method"] as? String, "squash")
+        XCTAssertEqual(object?["sha"] as? String, "abc123")
+        XCTAssertEqual(object?["commit_title"] as? String, "Squash it")
+        XCTAssertEqual(object?["commit_message"] as? String, "Details here")
+    }
+
+    func testMergePullRequestBodyOmitsNilFields() throws {
+        let body = GitHubAPI.MergePullRequestBody(
+            mergeMethod: MergeMethod.merge.rawValue,
+            sha: nil,
+            commitTitle: nil,
+            commitMessage: nil
+        )
+        let data = try JSONEncoder().encode(body)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertEqual(object?["merge_method"] as? String, "merge")
+        XCTAssertNil(object?["sha"])
+        XCTAssertNil(object?["commit_title"])
+        XCTAssertNil(object?["commit_message"])
+    }
 }

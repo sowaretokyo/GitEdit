@@ -48,6 +48,10 @@ extension GitHubAPI {
         static func createIssueComment(owner: String, repo: String, number: Int) -> String {
             "/repos/\(owner)/\(repo)/issues/\(number)/comments"
         }
+
+        static func merge(owner: String, repo: String, number: Int) -> String {
+            "/repos/\(owner)/\(repo)/pulls/\(number)/merge"
+        }
     }
 
     struct CreatePullRequestBody: Encodable, Equatable {
@@ -64,6 +68,20 @@ extension GitHubAPI {
 
     struct CreateIssueCommentBody: Encodable, Equatable {
         let body: String
+    }
+
+    struct MergePullRequestBody: Encodable, Equatable {
+        let mergeMethod: String
+        let sha: String?
+        let commitTitle: String?
+        let commitMessage: String?
+
+        enum CodingKeys: String, CodingKey {
+            case mergeMethod = "merge_method"
+            case sha
+            case commitTitle = "commit_title"
+            case commitMessage = "commit_message"
+        }
     }
 
     /// The 50 most recently updated open PRs. GitHub caps `per_page` at 100;
@@ -175,6 +193,37 @@ extension GitHubAPI {
             path: PullRequestRequests.createIssueComment(owner: owner, repo: repo, number: number),
             body: data,
             as: IssueComment.self,
+            requiredScope: "repo"
+        ).value
+    }
+
+    // MARK: - Merge
+
+    /// `sha`, when given, pins the merge to the head commit the caller last
+    /// saw — GitHub responds 409 if the branch has since moved, which
+    /// `send` surfaces as `.conflict` rather than silently merging a commit
+    /// the caller never reviewed.
+    func mergePullRequest(
+        owner: String,
+        repo: String,
+        number: Int,
+        method: MergeMethod,
+        sha: String?,
+        commitTitle: String?,
+        commitMessage: String?
+    ) async throws -> MergeResult {
+        let payload = MergePullRequestBody(
+            mergeMethod: method.rawValue,
+            sha: sha,
+            commitTitle: commitTitle,
+            commitMessage: commitMessage
+        )
+        let data = try JSONEncoder().encode(payload)
+        return try await send(
+            method: "PUT",
+            path: PullRequestRequests.merge(owner: owner, repo: repo, number: number),
+            body: data,
+            as: MergeResult.self,
             requiredScope: "repo"
         ).value
     }

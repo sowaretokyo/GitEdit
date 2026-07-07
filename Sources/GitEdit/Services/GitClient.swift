@@ -757,6 +757,17 @@ final class GitClient: @unchecked Sendable {
         }
     }
 
+    /// Creates `name` from `startPoint` and switches to it in one step, with
+    /// explicit upstream tracking (`git switch -c <name> --track <startPoint>`).
+    /// Used for pull-request checkout so the new branch has the right
+    /// upstream wired up immediately, without a separate
+    /// `branch --set-upstream-to` call.
+    func switchCreatingTrackingBranch(name: String, startPoint: String) async throws {
+        try await runClassified(operation: .switchBranch) {
+            try await self.run("switch", "-c", name, "--track", startPoint)
+        }
+    }
+
     func deleteBranch(name: String, force: Bool = false) async throws {
         try await runClassified(operation: .deleteBranch) {
             try await self.run("branch", force ? "-D" : "-d", name)
@@ -847,6 +858,16 @@ final class GitClient: @unchecked Sendable {
                 args.append(remote)
             }
             try await self.run(args)
+        }
+    }
+
+    /// Fetches a single refspec (e.g. a branch name, or
+    /// `pull/42/head:pr/42` to materialize a PR's head as a local branch)
+    /// without touching any other refs. Used by pull-request checkout, which
+    /// needs an exact ref rather than a full `--prune --all` sync.
+    func fetch(remote: String = "origin", refspec: String) async throws {
+        try await runClassified(operation: .fetch) {
+            try await self.run("fetch", remote, refspec)
         }
     }
 

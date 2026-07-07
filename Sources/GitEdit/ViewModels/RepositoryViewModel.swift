@@ -432,6 +432,42 @@ final class RepositoryViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Pull request operations
+
+    /// Checks out a pull request's head branch.
+    ///
+    /// Same-repo PRs get a normal tracking branch so subsequent push/pull
+    /// work as expected. Fork PRs are checked out read-only into
+    /// `pr/<number>` via `refs/pull/<number>/head` — pushing back to a fork
+    /// isn't something this app supports, so there's no upstream to track.
+    /// If `pr/<number>` already exists locally we never re-fetch over it:
+    /// the user may have added local commits on top while reviewing.
+    func checkoutPullRequest(_ pr: PullRequest) async {
+        do {
+            let branchName: String
+            if pr.isSameRepo {
+                branchName = pr.head.ref
+                try await git.fetch(refspec: pr.head.ref)
+                if localBranches.contains(where: { $0.name == branchName }) {
+                    try await git.switchBranch(name: branchName)
+                } else {
+                    try await git.switchCreatingTrackingBranch(name: branchName, startPoint: "origin/\(branchName)")
+                }
+            } else {
+                branchName = "pr/\(pr.number)"
+                if !localBranches.contains(where: { $0.name == branchName }) {
+                    try await git.fetch(refspec: "pull/\(pr.number)/head:\(branchName)")
+                }
+                try await git.switchBranch(name: branchName)
+            }
+            await refresh()
+            bumpDataVersion()
+            operationSuccess = L("ブランチをチェックアウトしました: %@", branchName)
+        } catch {
+            report(error, operation: .switchBranch)
+        }
+    }
+
     // MARK: - Stash operations
 
     /// Re-reads the stash list from disk. Indexes shift after any drop/apply

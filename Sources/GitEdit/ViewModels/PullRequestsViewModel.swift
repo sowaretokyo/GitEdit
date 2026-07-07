@@ -15,6 +15,7 @@ final class PullRequestsViewModel: ObservableObject {
     /// Set when the load failure was `.unauthorized` / `.insufficientScopes`,
     /// so the sidebar can offer "再サインイン" instead of a generic retry.
     @Published private(set) var needsReauth: Bool = false
+    @Published var isShowingCreateSheet: Bool = false
 
     private var currentRef: GitHubRepositoryRef?
     private var currentToken: String?

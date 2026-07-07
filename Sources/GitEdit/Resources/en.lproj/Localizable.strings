@@ -471,6 +471,17 @@
 "チェックアウト" = "Check out";
 "ブランチをチェックアウトしました: %@" = "Checked out branch: %@";
 "フォークからのプルリクエストは閲覧のみ対応しています（チェックアウト後はプッシュできません）" = "Pull requests from forks are view-only; you can't push back after checking out";
+"新規プルリクエスト" = "New pull request";
+"プルリクエストを作成" = "Create pull request";
+"タイトル" = "Title";
+"本文" = "Description";
+"ベースブランチ" = "Base branch";
+"比較ブランチ" = "Compare branch";
+"プルリクエストを作成しました: #%d" = "Created pull request #%d";
+"先にブランチをプッシュしてください" = "Push the branch first";
+"ベースブランチと比較ブランチが同じです" = "Base and compare branches are the same";
+"タイトルを入力してください" = "Enter a title";
+"プルリクエストの作成に失敗しました" = "Couldn't create the pull request";
 "GitHub API のレート制限に達しました。%@ 以降に再試行してください" = "Reached the GitHub API rate limit. Try again after %@";
 "権限が不足しています。再サインインしてください" = "Insufficient permissions. Please sign in again";
 "再サインイン" = "Sign in again";

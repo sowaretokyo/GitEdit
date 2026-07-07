@@ -25,6 +25,9 @@ struct PullRequestSidebar: View {
         .sheet(isPresented: $isShowingSignIn) {
             DeviceFlowSheet(isPresented: $isShowingSignIn, store: accountStore)
         }
+        .sheet(isPresented: $viewModel.isShowingCreateSheet) {
+            CreatePullRequestSheet(repoVM: repoVM, pullRequestsVM: viewModel)
+        }
     }
 
     // MARK: - Header
@@ -54,6 +57,15 @@ struct PullRequestSidebar: View {
             .buttonStyle(.plain)
             .help(L("更新"))
             .disabled(!canInteract || viewModel.isLoadingList)
+
+            Button {
+                viewModel.isShowingCreateSheet = true
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.plain)
+            .help(L("新規プルリクエスト"))
+            .disabled(!canInteract)
         }
         .padding(.horizontal, DT.Space.md)
         .padding(.vertical, DT.Space.sm + 2)

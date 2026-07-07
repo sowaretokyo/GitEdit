@@ -28,6 +28,17 @@ extension GitHubAPI {
         static func combinedStatus(owner: String, repo: String, ref: String) -> String {
             "/repos/\(owner)/\(repo)/commits/\(ref)/status"
         }
+
+        static func create(owner: String, repo: String) -> String {
+            "/repos/\(owner)/\(repo)/pulls"
+        }
+    }
+
+    struct CreatePullRequestBody: Encodable, Equatable {
+        let title: String
+        let head: String
+        let base: String
+        let body: String?
     }
 
     /// The 50 most recently updated open PRs. GitHub caps `per_page` at 100;
@@ -61,6 +72,31 @@ extension GitHubAPI {
             method: "GET",
             path: PullRequestRequests.combinedStatus(owner: owner, repo: repo, ref: ref),
             as: CombinedStatus.self
+        ).value
+    }
+
+    func createPullRequest(
+        owner: String,
+        repo: String,
+        title: String,
+        head: String,
+        base: String,
+        body: String?
+    ) async throws -> PullRequest {
+        let trimmedBody = body?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let payload = CreatePullRequestBody(
+            title: title,
+            head: head,
+            base: base,
+            body: (trimmedBody?.isEmpty ?? true) ? nil : trimmedBody
+        )
+        let data = try JSONEncoder().encode(payload)
+        return try await send(
+            method: "POST",
+            path: PullRequestRequests.create(owner: owner, repo: repo),
+            body: data,
+            as: PullRequest.self,
+            requiredScope: "repo"
         ).value
     }
 }

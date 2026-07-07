@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-07-07
+
 ### 追加 (Added)
 
 - Git 実行時の `PATH` を正規化し、GUI 起動時でも Homebrew / pnpm / Volta / asdf / nodenv などの開発ツールを見つけやすくした
@@ -95,7 +97,8 @@
 - 認証トークンは Keychain 保存
 - OAuth body エンコードは `URLComponents` を使用
 
-[Unreleased]: https://github.com/sowaretokyo/GitEdit/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/sowaretokyo/GitEdit/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/sowaretokyo/GitEdit/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/sowaretokyo/GitEdit/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/sowaretokyo/GitEdit/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/sowaretokyo/GitEdit/compare/v0.1.1...v0.1.2

@@ -4,6 +4,7 @@ import SwiftUI
 /// NavigationSplitView sidebar toggle. Sits outside `RepositoryView`.
 struct RepositorySidebar: View {
     @EnvironmentObject var store: RepositoryStore
+    @Environment(\.openWindow) private var openWindow
 
     @State private var groupSheet: GroupSheetContext?
     @State private var pendingDeleteGroup: RepositoryGroup?
@@ -120,6 +121,10 @@ struct RepositorySidebar: View {
         RepositoryRow(repository: repo)
             .tag(repo.id)
             .contextMenu {
+                Button(L("新しいウィンドウで開く")) {
+                    openWindow(id: "repository", value: repo.id)
+                }
+                Divider()
                 Button(repo.isPinned ? L("ピン留めを解除") : L("ピン留め")) {
                     store.togglePin(repo.id)
                 }

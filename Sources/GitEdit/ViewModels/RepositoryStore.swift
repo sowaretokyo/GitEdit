@@ -24,6 +24,15 @@ final class RepositoryStore: ObservableObject {
         return repositories.first { $0.id == id }
     }
 
+    /// Whether the persisted repository list has finished loading. Standalone
+    /// repository windows use this to distinguish "still loading at launch"
+    /// from "this repository no longer exists".
+    var isLoaded: Bool { hasLoaded }
+
+    func repository(withID id: Repository.ID) -> Repository? {
+        repositories.first { $0.id == id }
+    }
+
     /// Whether the sidebar has anything to organize. When false, the sidebar
     /// stays the flat single-section list it has always been.
     var hasOrganization: Bool {

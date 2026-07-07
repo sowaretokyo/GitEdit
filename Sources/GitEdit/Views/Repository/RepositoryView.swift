@@ -6,6 +6,10 @@ import AppKit
 
 struct RepositoryView: View {
     let repository: Repository
+    /// Hides the "Current Repository" toolbar picker in standalone
+    /// per-repository windows, where switching the selected repository
+    /// would be meaningless (there's no sidebar-driven selection to switch).
+    let showsRepositoryPicker: Bool
 
     @StateObject private var repoVM: RepositoryViewModel
     @StateObject private var changesVM: ChangesViewModel
@@ -43,8 +47,9 @@ struct RepositoryView: View {
         }
     }
 
-    init(repository: Repository) {
+    init(repository: Repository, showsRepositoryPicker: Bool = true) {
         self.repository = repository
+        self.showsRepositoryPicker = showsRepositoryPicker
         _repoVM = StateObject(wrappedValue: RepositoryViewModel(repository: repository))
         _changesVM = StateObject(wrappedValue: ChangesViewModel(repository: repository))
         _historyVM = StateObject(wrappedValue: HistoryViewModel(repository: repository))
@@ -101,8 +106,10 @@ struct RepositoryView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                CurrentRepositoryPicker()
+            if showsRepositoryPicker {
+                ToolbarItem(placement: .navigation) {
+                    CurrentRepositoryPicker()
+                }
             }
             ToolbarItem(placement: .navigation) {
                 BranchPicker(repoVM: repoVM)

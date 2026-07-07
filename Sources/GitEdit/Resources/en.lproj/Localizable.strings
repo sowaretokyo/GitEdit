@@ -6,6 +6,13 @@
 "アップデートを確認…" = "Check for Updates…";
 "設定…" = "Settings…";
 
+/* ===== Multi-window ===== */
+"新しいウィンドウで開く" = "Open in New Window";
+"リポジトリを新しいウィンドウで開く" = "Open Repository in New Window";
+"リポジトリが見つかりません" = "Repository Not Found";
+"このリポジトリはリストから削除されたか、移動された可能性があります。" = "This repository may have been removed from the list or has moved.";
+"ウィンドウを閉じる" = "Close Window";
+
 /* ===== Settings ===== */
 "一般" = "General";
 "情報" = "About";

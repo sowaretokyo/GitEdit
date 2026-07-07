@@ -337,3 +337,21 @@
 "origin に同名ブランチを作成し、以降のプッシュ／プルで自動的に追跡されるようにします。" = "Creates a same-named branch on origin so future pushes/pulls track it automatically.";
 "GitHub に再サインインして、有効なトークンを発行し直します。" = "Sign back into GitHub and issue a fresh token.";
 "ターミナルで以下を実行: git config --global user.name \"Your Name\" / git config --global user.email \"you@example.com\"" = "In Terminal: git config --global user.name \"Your Name\" / git config --global user.email \"you@example.com\"";
+
+/* ===== Sidebar — repository organization ===== */
+"ピン留め済み" = "Pinned";
+"ピン留め" = "Pin";
+"ピン留めを解除" = "Unpin";
+"グループへ移動" = "Move to Group";
+"グループから外す" = "Remove from Group";
+"新規グループ…" = "New Group…";
+"新しいグループ" = "New Group";
+"グループ名を変更" = "Rename Group";
+"グループ名" = "Group name";
+"例: 仕事" = "e.g. Work";
+"名前を変更…" = "Rename…";
+"グループを削除" = "Delete Group";
+"その他" = "Other";
+"グループ「%@」を削除しますか？" = "Delete the group \"%@\"?";
+"グループを削除してもリポジトリは残ります。" = "Repositories stay; only the group is removed.";
+"リストから削除" = "Remove from List";

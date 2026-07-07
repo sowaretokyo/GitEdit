@@ -45,6 +45,65 @@ final class GitClient: @unchecked Sendable {
 
     // MARK: - Static runner (used by clone/init that don't have a repo yet)
 
+    static func gitEnvironment(
+        base: [String: String] = ProcessInfo.processInfo.environment
+    ) -> [String: String] {
+        var env = base
+        env["PATH"] = normalizedPATH(current: env["PATH"], home: env["HOME"])
+        env["LC_ALL"] = "C.UTF-8"
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        // Skip git's "optional" locks so read commands like `status`/`diff`
+        // never rewrite `.git/index` to refresh its stat cache. That rewrite
+        // is what made our FSEvents watcher loop forever (status → index
+        // rewrite → FSEvent → status …), and it also fought the user's own
+        // terminal git over `index.lock`. Required locks (commit, add,
+        // checkout) are unaffected — this only disables the optional ones.
+        // Matches GitHub Desktop's behaviour.
+        env["GIT_OPTIONAL_LOCKS"] = "0"
+        return env
+    }
+
+    static func normalizedPATH(current: String?, home: String?) -> String {
+        let fallback = "/usr/bin:/bin:/usr/sbin:/sbin"
+        let existing = (current?.isEmpty == false ? current! : fallback)
+            .split(separator: ":", omittingEmptySubsequences: true)
+            .map(String.init)
+
+        let homePrefix = home?
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+
+        var preferred = [
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",
+            "/usr/local/sbin",
+            "/opt/local/bin",
+            "/opt/local/sbin"
+        ]
+
+        if let homePrefix, !homePrefix.isEmpty {
+            let homePath = "/\(homePrefix)"
+            preferred += [
+                "\(homePath)/Library/pnpm",
+                "\(homePath)/.local/bin",
+                "\(homePath)/.npm-global/bin",
+                "\(homePath)/.yarn/bin",
+                "\(homePath)/.volta/bin",
+                "\(homePath)/.asdf/shims",
+                "\(homePath)/.nodenv/shims",
+                "\(homePath)/.nvm/current/bin",
+                "\(homePath)/.bun/bin",
+                "\(homePath)/.deno/bin",
+                "\(homePath)/.cargo/bin"
+            ]
+        }
+
+        var seen = Set<String>()
+        return (preferred + existing)
+            .filter { seen.insert($0).inserted }
+            .joined(separator: ":")
+    }
+
     @discardableResult
     static func runGit(_ arguments: [String], cwd: URL? = nil) async throws -> String {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
@@ -53,19 +112,8 @@ final class GitClient: @unchecked Sendable {
             process.arguments = ["git"] + arguments
             if let cwd { process.currentDirectoryURL = cwd }
 
-            var env = ProcessInfo.processInfo.environment
-            env["LC_ALL"] = "C.UTF-8"
-            env["GIT_TERMINAL_PROMPT"] = "0"
-            // Skip git's "optional" locks so read commands like `status`/`diff`
-            // never rewrite `.git/index` to refresh its stat cache. That rewrite
-            // is what made our FSEvents watcher loop forever (status → index
-            // rewrite → FSEvent → status …), and it also fought the user's own
-            // terminal git over `index.lock`. Required locks (commit, add,
-            // checkout) are unaffected — this only disables the optional ones.
-            // Matches GitHub Desktop's behaviour.
-            env["GIT_OPTIONAL_LOCKS"] = "0"
             // Allow askpass / SSH agent to work but suppress interactive prompts.
-            process.environment = env
+            process.environment = gitEnvironment()
 
             let stdout = Pipe()
             let stderr = Pipe()

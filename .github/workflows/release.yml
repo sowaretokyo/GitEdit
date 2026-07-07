@@ -22,7 +22,7 @@ jobs:
   release:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Resolve version
         id: ver
@@ -78,7 +78,7 @@ jobs:
         run: cp build/GitEdit.dmg "build/GitEdit-${{ steps.ver.outputs.version }}.dmg"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: GitEdit-${{ steps.ver.outputs.version }}-dmg
           path: |
@@ -141,14 +141,14 @@ jobs:
 
       - name: Upload Sparkle feed artifact
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: GitEdit-${{ steps.ver.outputs.version }}-sparkle-feed
           path: build/sparkle-feed
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: GitEdit ${{ steps.ver.outputs.version }}
           generate_release_notes: true

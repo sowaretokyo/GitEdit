@@ -139,13 +139,13 @@ struct ErrorInspectorSheet: View {
             Text(label)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(text)
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
-                    .padding(DT.Space.sm)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            Text(text)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.primary)
+                .textSelection(.enabled)
+                .padding(DT.Space.sm)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
             .background(
                 RoundedRectangle(cornerRadius: DT.Radius.sm, style: .continuous)
                     .fill(Color(nsColor: .textBackgroundColor))

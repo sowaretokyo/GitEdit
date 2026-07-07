@@ -45,6 +45,7 @@ final class ChangesViewModel: ObservableObject {
     @Published var lastError: GitOperationError?
 
     private let git: GitClient
+    private var changeDisplayOrder: [String] = []
 
     init(repository: Repository) {
         self.git = GitClient(repository: repository.url)
@@ -74,7 +75,7 @@ final class ChangesViewModel: ObservableObject {
     func refreshStatus() async {
         do {
             let prev = selectedPath
-            changes = try await git.status()
+            applyStatus(try await git.status())
             if prev == nil || !changes.contains(where: { $0.path == prev }) {
                 if let first = changes.first {
                     await select(first)
@@ -217,7 +218,9 @@ final class ChangesViewModel: ObservableObject {
             )
             // Refresh status (file might now be clean/dirty differently).
             let prev = selectedPath
-            changes = (try? await git.status()) ?? changes
+            if let latest = try? await git.status() {
+                applyStatus(latest)
+            }
             selectedPath = prev
         } catch {
             report(error, operation: .other(L("ファイル保存")))
@@ -363,5 +366,32 @@ final class ChangesViewModel: ObservableObject {
 
     func clearLastError() {
         lastError = nil
+    }
+
+    private func applyStatus(_ latest: [FileChange]) {
+        changes = Self.preserveDisplayOrder(latest, previousOrder: changeDisplayOrder)
+        changeDisplayOrder = changes.map(\.path)
+    }
+
+    static func preserveDisplayOrder(
+        _ latest: [FileChange],
+        previousOrder: [String]
+    ) -> [FileChange] {
+        guard !previousOrder.isEmpty else { return latest }
+
+        var remainingByPath = Dictionary(uniqueKeysWithValues: latest.map { ($0.path, $0) })
+        var ordered: [FileChange] = []
+
+        for path in previousOrder {
+            if let change = remainingByPath.removeValue(forKey: path) {
+                ordered.append(change)
+            }
+        }
+
+        for change in latest where remainingByPath.removeValue(forKey: change.path) != nil {
+            ordered.append(change)
+        }
+
+        return ordered
     }
 }

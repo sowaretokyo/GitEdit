@@ -508,3 +508,28 @@
 "権限が不足しています。再サインインしてください" = "Insufficient permissions. Please sign in again";
 "再サインイン" = "Sign in again";
 "左のリストからプルリクエストを選択" = "Select a pull request from the list";
+
+/* ===== Pull requests — reviews (L3) ===== */
+"レビュー" = "Reviews";
+"コメント" = "Comment";
+"承認" = "Approve";
+"変更をリクエスト" = "Request changes";
+"コメントを入力してください" = "Enter a comment";
+"承認しました" = "Approved";
+"変更をリクエストしました" = "Requested changes";
+"コメントを投稿しました" = "Comment posted";
+"レビューの投稿に失敗しました" = "Couldn't submit the review";
+"コメントを書く…" = "Write a comment…";
+
+/* ===== Pull requests — merge (L4) ===== */
+"マージ方法" = "Merge method";
+"マージコミット" = "Merge commit";
+"スカッシュしてマージ" = "Squash and merge";
+"リベースしてマージ" = "Rebase and merge";
+"プルリクエストをマージしますか？" = "Merge this pull request?";
+"マージしました" = "Merged";
+"ドラフトのためマージできません" = "Can't merge a draft";
+"コンフリクトがあるためマージできません" = "Can't merge due to conflicts";
+"マージ可否を判定中です" = "Checking whether this can be merged";
+"ブランチ保護によりマージがブロックされています" = "Merging is blocked by branch protection";
+"チェックが失敗していますが、マージしますか？" = "Some checks are failing. Merge anyway?";

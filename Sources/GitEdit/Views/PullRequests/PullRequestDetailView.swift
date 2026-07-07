@@ -1,9 +1,7 @@
 import SwiftUI
 
-/// Detail pane for a single pull request.
-///
-/// Sections are ordered so review (L3) and merge (L4) UI can slot in later
-/// without reshuffling what's already here — see the markers in `body`.
+/// Detail pane for a single pull request: header, body, checks, merge
+/// action, and review/comment section, in that order.
 struct PullRequestDetailView: View {
     let pullRequest: PullRequest
     @ObservedObject var repoVM: RepositoryViewModel
@@ -25,11 +23,11 @@ struct PullRequestDetailView: View {
 
                     checksSection
 
-                    // MARK: - L3 (review) inserts here: diff/files list, review
-                    // comments, approve / request-changes actions.
+                    if pullRequest.isOpen && !pullRequest.isMerged {
+                        PullRequestMergeSection(pullRequest: pullRequest, repoVM: repoVM, viewModel: viewModel)
+                    }
 
-                    // MARK: - L4 (merge) inserts here: merge-method picker,
-                    // merge/close buttons, "delete branch after merge" toggle.
+                    PullRequestReviewSection(pullRequest: pullRequest, repoVM: repoVM, viewModel: viewModel)
                 }
                 .padding(DT.Space.lg)
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -438,3 +438,14 @@
 "プッシュ済みのコミットが含まれるため取り消せません。取り消すとリモートとの整合が崩れ、強制プッシュが必要になります。" = "It includes commits already pushed to the remote. Undoing would break sync with the remote and require a force push.";
 "取り消せる操作はありません（作業ツリーの変更・退避・プッシュ済みの操作は取り消し対象外）" = "Nothing to undo (working-tree edits, stashes, and pushed operations can't be undone)";
 "取り消し" = "Undo";
+
+/* ===== Diff display (unified/split + image diff) ===== */
+"統合" = "Unified";
+"分割" = "Split";
+"差分の表示形式" = "Diff display style";
+"変更前" = "Before";
+"変更後" = "After";
+"新規追加された画像" = "Newly added image";
+"削除された画像" = "Deleted image";
+"画像を表示できません" = "Can't display this image";
+"%d × %d ピクセル" = "%d × %d px";

@@ -26,6 +26,11 @@ final class ChangesViewModel: ObservableObject {
     /// untracked files, where partial staging isn't offered.
     @Published var unstagedDiff: FileDiff?
     @Published var stagedDiff: FileDiff?
+    /// Set instead of `diffText` when the selected file is an image, so the
+    /// UI can show a before/after image comparison rather than a binary
+    /// text patch. `nil` for non-image files (and for images with no
+    /// decodable content on either side).
+    @Published var imageDiff: ImageDiffContent?
 
     // MARK: - Editor view
     @Published var editorViewMode: DiffEditorMode = .diff
@@ -186,10 +191,21 @@ final class ChangesViewModel: ObservableObject {
             diffText = ""
             unstagedDiff = nil
             stagedDiff = nil
+            imageDiff = nil
             return
         }
         isLoadingDiff = true
         defer { isLoadingDiff = false }
+
+        if ImageDiff.isImagePath(change.path), let content = await loadImageDiff(for: change) {
+            imageDiff = content
+            diffText = ""
+            unstagedDiff = nil
+            stagedDiff = nil
+            return
+        }
+        imageDiff = nil
+
         do {
             if change.isUntracked {
                 if let content = git.readFileFromWorkTree(path: change.path) {
@@ -224,6 +240,18 @@ final class ChangesViewModel: ObservableObject {
             unstagedDiff = nil
             stagedDiff = nil
         }
+    }
+
+    /// Reads before/after bytes for an image file's diff: `before` is HEAD's
+    /// version (nil for untracked files, which have nothing at HEAD yet) and
+    /// `after` is the current worktree content (nil once the file is
+    /// deleted). Returns nil if neither side has content to show.
+    private func loadImageDiff(for change: FileChange) async -> ImageDiffContent? {
+        let deleted = change.indexStatus == "D" || change.workingStatus == "D"
+        let before = change.isUntracked ? nil : await git.showFileData(rev: "HEAD", path: change.path)
+        let after = deleted ? nil : git.worktreeFileData(path: change.path)
+        let content = ImageDiffContent(before: before, after: after)
+        return content.hasAny ? content : nil
     }
 
     // MARK: - Editor

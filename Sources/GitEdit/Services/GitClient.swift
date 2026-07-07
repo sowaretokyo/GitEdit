@@ -106,7 +106,13 @@ final class GitClient: @unchecked Sendable {
 
     @discardableResult
     static func runGit(_ arguments: [String], cwd: URL? = nil, stdin: Data? = nil) async throws -> String {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
+        let data = try await runGitData(arguments, cwd: cwd, stdin: stdin)
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    @discardableResult
+    static func runGitData(_ arguments: [String], cwd: URL? = nil, stdin: Data? = nil) async throws -> Data {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Data, Error>) in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
             process.arguments = ["git"] + arguments
@@ -144,12 +150,11 @@ final class GitClient: @unchecked Sendable {
 
             process.terminationHandler = { proc in
                 group.wait() // ensure both pipes are fully drained
-                let outStr = String(data: outBox.data, encoding: .utf8) ?? ""
-                let errStr = String(data: errBox.data, encoding: .utf8) ?? ""
 
                 if proc.terminationStatus == 0 {
-                    cont.resume(returning: outStr)
+                    cont.resume(returning: outBox.data)
                 } else {
+                    let errStr = String(data: errBox.data, encoding: .utf8) ?? ""
                     cont.resume(throwing: GitError.commandFailed(
                         status: proc.terminationStatus,
                         stderr: errStr,
@@ -354,6 +359,20 @@ final class GitClient: @unchecked Sendable {
     func readFileFromWorkTree(path: String) -> String? {
         let url = repositoryURL.appendingPathComponent(path)
         return try? String(contentsOf: url, encoding: .utf8)
+    }
+
+    /// Raw bytes of `path` as it exists at `rev` (e.g. "HEAD", a SHA, or
+    /// "<sha>^"). Returns `nil` if the path doesn't exist at that revision —
+    /// which is the normal case for a file that was added or deleted there.
+    func showFileData(rev: String, path: String) async -> Data? {
+        try? await Self.runGitData(["show", "\(rev):\(path)"], cwd: repositoryURL)
+    }
+
+    /// Raw bytes of `path` as it currently sits in the working tree. Returns
+    /// `nil` if the file doesn't exist (e.g. it was deleted).
+    func worktreeFileData(path: String) -> Data? {
+        let url = repositoryURL.appendingPathComponent(path)
+        return try? Data(contentsOf: url)
     }
 
     // MARK: - Commit details

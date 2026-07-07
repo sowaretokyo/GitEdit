@@ -19,6 +19,11 @@ final class RepositoryViewModel: ObservableObject {
     // MARK: - Remotes
     @Published var remotes: [Remote] = []
 
+    // MARK: - Stash
+    @Published var stashes: [StashEntry] = []
+    @Published var isShowingStashSheet: Bool = false
+    @Published var pendingStashDrop: StashEntry?
+
     // MARK: - Network ops state
     @Published var isFetching: Bool = false
     @Published var isPulling: Bool = false
@@ -120,7 +125,8 @@ final class RepositoryViewModel: ObservableObject {
         async let rems: Void = refreshRemotes()
         async let dirty: Void = refreshDirty()
         async let merge: Void = refreshMergeState()
-        _ = await (branch, branches, rems, dirty, merge)
+        async let stash: Void = loadStashes()
+        _ = await (branch, branches, rems, dirty, merge, stash)
     }
 
     func refreshBranchInfo() async {
@@ -189,6 +195,26 @@ final class RepositoryViewModel: ObservableObject {
 
     func cancelSwitchAfterDirtyWarning() {
         pendingSwitchBranch = nil
+    }
+
+    /// Confirmed from the dirty-switch dialog's "変更を退避して切り替え" option:
+    /// stash (push only — never auto-pop, see `loadStashes` note on the
+    /// stash section below) then proceed with the pending switch.
+    func stashThenSwitchAfterDirtyWarning() async {
+        guard let branch = pendingSwitchBranch else { return }
+        pendingSwitchBranch = nil
+        do {
+            try await git.stashPush(
+                message: L("%@ から切り替え前に退避", currentBranchName ?? ""),
+                includeUntracked: true
+            )
+        } catch {
+            report(error, operation: .stash)
+            return
+        }
+        await refreshDirty()
+        await loadStashes()
+        await performSwitch(branch)
     }
 
     private func performSwitch(_ branch: Branch) async {
@@ -330,6 +356,139 @@ final class RepositoryViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Stash operations
+
+    /// Re-reads the stash list from disk. Indexes shift after any drop/apply
+    /// that removes an entry, so every mutating stash operation below calls
+    /// this again rather than patching `stashes` in place.
+    func loadStashes() async {
+        stashes = (try? await git.stashList()) ?? []
+    }
+
+    func createStash(message: String, includeUntracked: Bool) async {
+        do {
+            try await git.stashPush(message: message.isEmpty ? nil : message, includeUntracked: includeUntracked)
+            await refreshDirty()
+            await loadStashes()
+            bumpDataVersion()
+            operationSuccess = L("変更を退避しました")
+        } catch {
+            report(error, operation: .stash)
+        }
+    }
+
+    /// Applies a stash without removing it from the list.
+    func applyStash(_ entry: StashEntry) async {
+        do {
+            try await git.stashApply(selector: entry.selector)
+            await refresh()
+            bumpDataVersion()
+            operationSuccess = L("退避した変更を復元しました")
+        } catch {
+            await handleStashApplyFailure(error)
+        }
+    }
+
+    /// Applies a stash and, only if the apply succeeded cleanly, drops it.
+    /// Deliberately not implemented as `git stash pop` (which applies and
+    /// drops as a single step): that command still drops the stash even when
+    /// the apply left conflict markers behind in older git versions, and more
+    /// importantly gives us no chance to re-verify the selector still points
+    /// at the stash we think it does. We do that ourselves below so a failed
+    /// or conflicted apply never loses the stash.
+    func popStash(_ entry: StashEntry) async {
+        do {
+            try await git.stashApply(selector: entry.selector)
+        } catch {
+            await handleStashApplyFailure(error)
+            return
+        }
+        // Apply succeeded. Re-resolve the selector before dropping — if the
+        // stash list changed underneath us (e.g. another drop raced in),
+        // `stash@{N}` may now name a different stash than the one we applied.
+        if let sha = try? await git.stashSHA(selector: entry.selector), sha == entry.sha {
+            do {
+                try await git.stashDrop(selector: entry.selector)
+            } catch {
+                report(error, operation: .stashDrop)
+            }
+        } else {
+            operationError = GitOperationError(
+                operation: .stashDrop,
+                kind: .unknown,
+                title: L("退避の削除に失敗しました"),
+                summary: L("退避一覧が変化しました。もう一度お試しください。"),
+                suggestions: [],
+                rawStderr: "",
+                command: ""
+            )
+        }
+        await refresh()
+        bumpDataVersion()
+        if operationError == nil {
+            operationSuccess = L("退避した変更を復元しました")
+        }
+    }
+
+    func requestDropStash(_ entry: StashEntry) {
+        pendingStashDrop = entry
+    }
+
+    func cancelDropStash() {
+        pendingStashDrop = nil
+    }
+
+    /// Re-verifies the selector still points at the stash the user confirmed
+    /// dropping (same no-loss guarantee as `popStash`) before actually
+    /// dropping it.
+    func confirmDropStash() async {
+        guard let entry = pendingStashDrop else { return }
+        pendingStashDrop = nil
+        guard let sha = try? await git.stashSHA(selector: entry.selector), sha == entry.sha else {
+            operationError = GitOperationError(
+                operation: .stashDrop,
+                kind: .unknown,
+                title: L("退避の削除に失敗しました"),
+                summary: L("退避一覧が変化しました。もう一度お試しください。"),
+                suggestions: [],
+                rawStderr: "",
+                command: ""
+            )
+            await loadStashes()
+            return
+        }
+        do {
+            try await git.stashDrop(selector: entry.selector)
+            await loadStashes()
+            bumpDataVersion()
+            operationSuccess = L("退避を削除しました")
+        } catch {
+            report(error, operation: .stashDrop)
+        }
+    }
+
+    /// A failed `stash apply`/`pop` needs special handling: `git` writes the
+    /// actual `CONFLICT (...)` explanation to *stdout*, which we don't
+    /// capture, so the classifier's stderr-based match on `.stashApplyConflict`
+    /// rarely fires on its own (see the note in GitErrorClassifier). We
+    /// confirm conflicts the same way `mergeBranch` does for regular merges —
+    /// by checking real repo state — and only fall back to the classified
+    /// error for other failure modes (e.g. "would be overwritten").
+    private func handleStashApplyFailure(_ error: Error) async {
+        let classified = GitErrorClassifier.classify(error, operation: .stashApply)
+        let hasConflicts = ((try? await git.status()) ?? []).contains { $0.isConflicted }
+        operationError = (hasConflicts || classified.kind == .stashApplyConflict)
+            ? GitErrorClassifier.build(
+                kind: .stashApplyConflict,
+                operation: .stashApply,
+                rawStderr: classified.rawStderr,
+                command: classified.command
+              )
+            : classified
+        await refresh()
+        bumpDataVersion()
+    }
+
     // MARK: - Network operations
 
     func fetch() async {
@@ -462,7 +621,7 @@ final class RepositoryViewModel: ObservableObject {
         case .fetch: await fetch()
         case .merge, .commit, .stage, .unstage,
              .switchBranch, .createBranch, .deleteBranch,
-             .clone, .initRepo, .other:
+             .clone, .initRepo, .stash, .stashApply, .stashDrop, .other:
             // No-op: these operations need their original arguments which we
             // didn't snapshot. The "Retry" suggestion is only surfaced for
             // network ops where re-running with the same args is safe.

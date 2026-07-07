@@ -391,3 +391,29 @@
 "グループ「%@」を削除しますか？" = "Delete the group \"%@\"?";
 "グループを削除してもリポジトリは残ります。" = "Repositories stay; only the group is removed.";
 "リストから削除" = "Remove from List";
+
+/* ===== Stash ===== */
+"変更を退避して切り替え" = "Stash & Switch";
+"退避" = "Stash";
+"退避した変更" = "Stashed Changes";
+"退避する" = "Stash";
+"退避メッセージ（任意）" = "Stash message (optional)";
+"未追跡ファイルも含める" = "Include untracked files";
+"復元" = "Apply";
+"復元して退避を削除" = "Pop (apply & remove)";
+"退避を削除" = "Delete Stash";
+"退避を削除しますか？" = "Delete this stash?";
+"この退避を削除すると元に戻せません。" = "Deleting this stash cannot be undone.";
+"変更を退避しました" = "Changes stashed";
+"退避した変更を復元しました" = "Stash applied";
+"退避を削除しました" = "Stash deleted";
+"退避された変更はありません" = "No stashed changes";
+"%@ から切り替え前に退避" = "Auto-stash before switching from %@";
+"退避した変更の適用で競合が発生しました" = "Applying the stash caused conflicts";
+"退避内容と現在の変更が競合しました。退避は一覧に残っています。ファイルの競合を解消してください。" = "The stash conflicts with your current changes. The stash is kept in the list — resolve the conflicts in the files.";
+"退避一覧が変化しました。もう一度お試しください。" = "The stash list changed. Please try again.";
+"退避に失敗しました" = "Failed to stash";
+"退避の復元" = "Apply Stash";
+"退避の復元に失敗しました" = "Failed to apply stash";
+"退避の削除" = "Delete Stash";
+"退避の削除に失敗しました" = "Failed to delete stash";

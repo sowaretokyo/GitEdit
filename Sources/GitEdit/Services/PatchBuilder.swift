@@ -201,6 +201,21 @@ enum PatchBuilder {
         return lines.joined(separator: "\n") + "\n"
     }
 
+    /// Multi-*file* patch: concatenates each file's own patch (via
+    /// `patch(selections:in:)`), skipping any file whose `selections` list is
+    /// empty. Used by partial stash to combine hunk/line selections spanning
+    /// several files into a single patch for `git apply --cached`. Each
+    /// per-file patch is already newline-terminated, so plain concatenation
+    /// reproduces the same layout `git diff` uses for multi-file output.
+    static func combinedPatch(
+        files: [(fileDiff: FileDiff, selections: [(hunk: DiffHunk, selectedLineIndices: Set<Int>)])]
+    ) -> String {
+        files
+            .filter { !$0.selections.isEmpty }
+            .map { patch(selections: $0.selections, in: $0.fileDiff) }
+            .joined()
+    }
+
     private static func filterLines(_ lines: [PatchLine], selected: Set<Int>) -> [PatchLine] {
         var result: [PatchLine] = []
         for (index, line) in lines.enumerated() {

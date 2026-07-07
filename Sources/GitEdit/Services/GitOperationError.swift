@@ -41,6 +41,7 @@ struct GitOperationError: Identifiable, LocalizedError, Equatable {
         case stash
         case stashApply
         case stashDrop
+        case stashPartial
         case other(String)
 
         var label: String {
@@ -60,6 +61,7 @@ struct GitOperationError: Identifiable, LocalizedError, Equatable {
             case .stash: return L("退避")
             case .stashApply: return L("退避の復元")
             case .stashDrop: return L("退避の削除")
+            case .stashPartial: return L("部分退避")
             case .other(let s): return s
             }
         }
@@ -83,6 +85,7 @@ struct GitOperationError: Identifiable, LocalizedError, Equatable {
             case .stash: return L("退避に失敗しました")
             case .stashApply: return L("退避の復元に失敗しました")
             case .stashDrop: return L("退避の削除に失敗しました")
+            case .stashPartial: return L("部分退避に失敗しました")
             case .other: return L("操作に失敗しました")
             }
         }

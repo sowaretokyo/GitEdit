@@ -504,6 +504,83 @@ final class PatchBuilderTests: XCTestCase {
         ].joined(separator: "\n")
         XCTAssertEqual(patch, expected)
     }
+
+    // MARK: - combinedPatch (multi-file, used by partial stash)
+
+    private func makeSecondFileDiff() -> (FileDiff, DiffHunk) {
+        let diff = [
+            "diff --git a/g.txt b/g.txt",
+            "index ccccccc..ddddddd 100644",
+            "--- a/g.txt",
+            "+++ b/g.txt",
+            "@@ -1,2 +1,2 @@",
+            " keep",
+            "-gone",
+            "+arrived"
+        ].joined(separator: "\n")
+        let fileDiff = PatchBuilder.parse(diff)
+        return (fileDiff, fileDiff.hunks[0])
+    }
+
+    func testCombinedPatchWithSingleFileMatchesPlainPatch() {
+        let (fileDiff, hunk) = makeWorkedExampleFileDiff()
+        let selections = [(hunk: hunk, selectedLineIndices: Set(hunk.lines.indices.filter { hunk.lines[$0].kind != .context }))]
+
+        let combined = PatchBuilder.combinedPatch(files: [(fileDiff: fileDiff, selections: selections)])
+        let plain = PatchBuilder.patch(selections: selections, in: fileDiff)
+
+        XCTAssertEqual(combined, plain)
+    }
+
+    func testCombinedPatchConcatenatesMultipleFiles() {
+        let (fileDiffA, hunkA) = makeWorkedExampleFileDiff()
+        let (fileDiffB, hunkB) = makeSecondFileDiff()
+        let selectionsA = [(hunk: hunkA, selectedLineIndices: Set(hunkA.lines.indices.filter { hunkA.lines[$0].kind != .context }))]
+        let selectionsB = [(hunk: hunkB, selectedLineIndices: Set(hunkB.lines.indices.filter { hunkB.lines[$0].kind != .context }))]
+
+        let combined = PatchBuilder.combinedPatch(files: [
+            (fileDiff: fileDiffA, selections: selectionsA),
+            (fileDiff: fileDiffB, selections: selectionsB)
+        ])
+
+        let expected = PatchBuilder.patch(selections: selectionsA, in: fileDiffA)
+            + PatchBuilder.patch(selections: selectionsB, in: fileDiffB)
+        XCTAssertEqual(combined, expected)
+        XCTAssertTrue(combined.contains("diff --git a/f.txt b/f.txt"))
+        XCTAssertTrue(combined.contains("diff --git a/g.txt b/g.txt"))
+    }
+
+    func testCombinedPatchSkipsFilesWithEmptySelection() {
+        let (fileDiffA, hunkA) = makeWorkedExampleFileDiff()
+        let (fileDiffB, _) = makeSecondFileDiff()
+        let selectionsA = [(hunk: hunkA, selectedLineIndices: Set(hunkA.lines.indices.filter { hunkA.lines[$0].kind != .context }))]
+
+        let combined = PatchBuilder.combinedPatch(files: [
+            (fileDiff: fileDiffA, selections: selectionsA),
+            (fileDiff: fileDiffB, selections: [])
+        ])
+
+        XCTAssertFalse(combined.contains("g.txt"))
+        XCTAssertEqual(combined, PatchBuilder.patch(selections: selectionsA, in: fileDiffA))
+    }
+
+    func testCombinedPatchConcatenatesLineLevelSelectionsAcrossFiles() {
+        let (fileDiffA, hunkA) = makeWorkedExampleFileDiff()
+        let (fileDiffB, hunkB) = makeSecondFileDiff()
+        // Only the removed line from each hunk (line-level, not whole-hunk).
+        let removedA = hunkA.lines.firstIndex { $0.kind == .removed }!
+        let removedB = hunkB.lines.firstIndex { $0.kind == .removed }!
+
+        let combined = PatchBuilder.combinedPatch(files: [
+            (fileDiff: fileDiffA, selections: [(hunk: hunkA, selectedLineIndices: [removedA])]),
+            (fileDiff: fileDiffB, selections: [(hunk: hunkB, selectedLineIndices: [removedB])])
+        ])
+
+        XCTAssertTrue(combined.contains("-old"))
+        XCTAssertFalse(combined.contains("+new"))
+        XCTAssertTrue(combined.contains("-gone"))
+        XCTAssertFalse(combined.contains("+arrived"))
+    }
 }
 
 // MARK: - Real git round-trip integration test

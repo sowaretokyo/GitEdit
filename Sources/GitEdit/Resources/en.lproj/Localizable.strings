@@ -421,6 +421,21 @@
 "退避の削除" = "Delete Stash";
 "退避の削除に失敗しました" = "Failed to delete stash";
 
+/* ===== Partial stash ===== */
+"一部だけ退避…" = "Stash Selection…";
+"変更を一部だけ退避" = "Stash Selected Changes";
+"退避する変更を選択してください。選択したかたまり・行だけが退避され、残りは作業ツリーに残ります。" = "Choose the changes to stash. Only the selected hunks and lines are stashed; the rest stay in your working tree.";
+"選択を退避" = "Stash Selection";
+"選択中: %d 件" = "%d selected";
+"退避できる変更がありません" = "No changes available to stash";
+"部分退避には git 2.35 以降が必要です" = "Partial stash requires git 2.35 or newer";
+"変更を一部退避しました" = "Stashed the selected changes";
+"部分退避" = "Partial stash";
+"部分退避に失敗しました" = "Failed to stash the selection";
+"退避内容を表示" = "Show stash contents";
+"退避内容を隠す" = "Hide stash contents";
+"この退避にファイルはありません" = "This stash has no files";
+
 /* ===== Undo ===== */
 "直前の操作を取り消す" = "Undo last action";
 "取り消しました: %@" = "Undone: %@";

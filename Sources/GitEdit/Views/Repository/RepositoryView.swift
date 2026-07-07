@@ -100,6 +100,21 @@ struct RepositoryView: View {
                 changesVM.clearLastError()
             }
         }
+        // Same bridging for HistoryViewModel's commit-editing flow: it owns
+        // the reword/squash/drop/reorder actions, but the undo/backup state
+        // and shared error banner live on RepositoryViewModel.
+        .onChange(of: historyVM.completedEdit) { _, newValue in
+            if let completion = newValue {
+                repoVM.recordCommitEditBackup(completion.backup, successMessage: completion.successMessage)
+                historyVM.completedEdit = nil
+            }
+        }
+        .onChange(of: historyVM.editError) { _, newValue in
+            if let err = newValue {
+                repoVM.operationError = err
+                historyVM.editError = nil
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 CurrentRepositoryPicker()
@@ -128,6 +143,9 @@ struct RepositoryView: View {
         }
         .sheet(isPresented: $repoVM.isShowingPartialStashSheet) {
             PartialStashSheet(repoVM: repoVM)
+        }
+        .sheet(item: $historyVM.pendingMessageEdit) { pending in
+            CommitMessageSheet(viewModel: historyVM, pending: pending)
         }
         .confirmationDialog(
             L("未コミットの変更があります"),
@@ -168,6 +186,7 @@ struct RepositoryView: View {
         .modifier(BranchActionDialogs(repoVM: repoVM))
         .modifier(StashActionDialogs(repoVM: repoVM))
         .modifier(UndoActionDialogs(repoVM: repoVM))
+        .modifier(HistoryEditDialogs(historyVM: historyVM))
         .overlay(alignment: .bottomTrailing) {
             OperationFeedbackBanner(repoVM: repoVM)
         }
@@ -456,6 +475,34 @@ private struct StashActionDialogs: ViewModifier {
     }
 }
 
+// MARK: - History edit dialogs (drop confirmation)
+
+/// Extracted for the same reason as `BranchActionDialogs` / `StashActionDialogs`.
+private struct HistoryEditDialogs: ViewModifier {
+    @ObservedObject var historyVM: HistoryViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                L("このコミットを削除しますか？"),
+                isPresented: Binding(
+                    get: { historyVM.pendingDropCommit != nil },
+                    set: { if !$0 { historyVM.cancelDrop() } }
+                ),
+                presenting: historyVM.pendingDropCommit
+            ) { _ in
+                Button(L("コミットを削除"), role: .destructive) {
+                    Task { await historyVM.confirmDrop() }
+                }
+                Button(L("キャンセル"), role: .cancel) {
+                    historyVM.cancelDrop()
+                }
+            } message: { _ in
+                Text(L("このコミットを削除すると、変更内容が履歴から取り除かれます。"))
+            }
+    }
+}
+
 // MARK: - Undo action dialogs (confirm / blocked notice)
 
 /// Extracted for the same reason as `BranchActionDialogs` / `StashActionDialogs`.
@@ -511,6 +558,8 @@ private struct UndoActionDialogs: ViewModifier {
             return L("マージ『%@』を取り消しますか？", summary)
         case .branchSwitch:
             return L("ブランチ切替を取り消しますか？")
+        case .editHistory(let summary, _):
+            return L("『%@』を取り消しますか？", summary)
         }
     }
 
@@ -525,6 +574,10 @@ private struct UndoActionDialogs: ViewModifier {
             message = L("このマージを取り消し、マージ前の状態に戻します。")
         case .branchSwitch(let from, _):
             message = L("「%@」に戻ります。", from)
+        case .editHistory:
+            // Already states the uncommitted-changes caveat unconditionally,
+            // so skip the generic suffix appended below for the other cases.
+            return L("編集前の状態に戻します。作業中の変更がある場合は失われます。")
         }
         if op.requiresHardReset, repoVM.hasUncommittedChanges {
             message += L("未コミットの変更は失われます。")

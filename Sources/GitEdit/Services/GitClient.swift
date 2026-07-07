@@ -39,8 +39,8 @@ final class GitClient: @unchecked Sendable {
     }
 
     @discardableResult
-    func run(_ arguments: [String], stdin: Data? = nil) async throws -> String {
-        try await Self.runGit(arguments, cwd: repositoryURL, stdin: stdin)
+    func run(_ arguments: [String], stdin: Data? = nil, env: [String: String]? = nil) async throws -> String {
+        try await Self.runGit(arguments, cwd: repositoryURL, stdin: stdin, env: env)
     }
 
     // MARK: - Static runner (used by clone/init that don't have a repo yet)
@@ -105,13 +105,13 @@ final class GitClient: @unchecked Sendable {
     }
 
     @discardableResult
-    static func runGit(_ arguments: [String], cwd: URL? = nil, stdin: Data? = nil) async throws -> String {
-        let data = try await runGitData(arguments, cwd: cwd, stdin: stdin)
+    static func runGit(_ arguments: [String], cwd: URL? = nil, stdin: Data? = nil, env: [String: String]? = nil) async throws -> String {
+        let data = try await runGitData(arguments, cwd: cwd, stdin: stdin, env: env)
         return String(data: data, encoding: .utf8) ?? ""
     }
 
     @discardableResult
-    static func runGitData(_ arguments: [String], cwd: URL? = nil, stdin: Data? = nil) async throws -> Data {
+    static func runGitData(_ arguments: [String], cwd: URL? = nil, stdin: Data? = nil, env: [String: String]? = nil) async throws -> Data {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Data, Error>) in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -119,7 +119,11 @@ final class GitClient: @unchecked Sendable {
             if let cwd { process.currentDirectoryURL = cwd }
 
             // Allow askpass / SSH agent to work but suppress interactive prompts.
-            process.environment = gitEnvironment()
+            var mergedEnvironment = gitEnvironment()
+            if let env {
+                for (key, value) in env { mergedEnvironment[key] = value }
+            }
+            process.environment = mergedEnvironment
 
             let stdout = Pipe()
             let stderr = Pipe()
@@ -480,28 +484,45 @@ final class GitClient: @unchecked Sendable {
 
     // MARK: - History
 
+    /// Separators for `recentCommits`' `git log --format=...` output, exposed
+    /// so tests can build matching fixture strings for `parseRecentCommits`.
+    static let recentCommitsRecordSeparator = "\u{1E}"
+    static let recentCommitsFieldSeparator = "\u{1F}"
+
     func recentCommits(limit: Int = 200) async throws -> [Commit] {
-        let RS = "\u{1E}"
-        let US = "\u{1F}"
+        let RS = Self.recentCommitsRecordSeparator
+        let US = Self.recentCommitsFieldSeparator
         // %B = raw body (including the subject line and any Co-Authored-By
         // trailers). We pull it so CoAuthorParser can extract co-authors.
+        // %P = space-separated parent SHAs; two or more means a merge commit.
         let output = try await run(
             "log", "-n", String(limit),
-            "--format=%H\(US)%h\(US)%aI\(US)%an\(US)%ae\(US)%s\(US)%B\(RS)"
+            "--format=%H\(US)%h\(US)%aI\(US)%an\(US)%ae\(US)%s\(US)%P\(US)%B\(RS)"
         )
+        return Self.parseRecentCommits(output)
+    }
 
+    /// Parses `recentCommits`' `git log` output into `Commit`s. Extracted as
+    /// a static, pure function so the field-splitting/isMerge logic can be
+    /// unit tested without a real repository.
+    static func parseRecentCommits(_ output: String) -> [Commit] {
+        let RS = recentCommitsRecordSeparator
+        let US = recentCommitsFieldSeparator
         let formatter = ISO8601DateFormatter()
         var commits: [Commit] = []
         for record in output.split(separator: Character(RS), omittingEmptySubsequences: true) {
-            // `maxSplits: 6` keeps newlines inside %B from being treated as
+            // `maxSplits: 7` keeps newlines inside %B from being treated as
             // field boundaries by accident.
             let fields = record
-                .split(separator: Character(US), maxSplits: 6, omittingEmptySubsequences: false)
+                .split(separator: Character(US), maxSplits: 7, omittingEmptySubsequences: false)
                 .map(String.init)
-            guard fields.count >= 7 else { continue }
+            guard fields.count >= 8 else { continue }
             let dateStr = fields[2].trimmingCharacters(in: .whitespacesAndNewlines)
             let date = formatter.date(from: dateStr) ?? .distantPast
-            let rawBody = fields[6]
+            let parentCount = fields[6]
+                .split(separator: " ", omittingEmptySubsequences: true)
+                .count
+            let rawBody = fields[7]
             commits.append(Commit(
                 id: fields[0].trimmingCharacters(in: .whitespacesAndNewlines),
                 shortSHA: fields[1],
@@ -510,7 +531,8 @@ final class GitClient: @unchecked Sendable {
                 author: fields[3],
                 authorEmail: fields[4],
                 date: date,
-                coAuthors: CoAuthorParser.parse(from: rawBody)
+                coAuthors: CoAuthorParser.parse(from: rawBody),
+                isMerge: parentCount >= 2
             ))
         }
         return commits
@@ -553,6 +575,95 @@ final class GitClient: @unchecked Sendable {
                 .trimmingCharacters(in: .whitespacesAndNewlines),
               !head.isEmpty else { return false }
         return await unpushedCommitSHAs().contains(head)
+    }
+
+    // MARK: - Commit history editing (reword / squash / drop / reorder)
+
+    /// Full SHA of HEAD, or `nil` if there is no commit yet.
+    func headSHA() async -> String? {
+        guard let sha = try? await run("rev-parse", "HEAD")
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !sha.isEmpty else { return nil }
+        return sha
+    }
+
+    /// Points `ref` (e.g. the commit-edit backup ref) at `sha`.
+    func updateRef(_ ref: String, to sha: String) async throws {
+        try await run("update-ref", ref, sha)
+    }
+
+    /// Removes `ref`. Always best-effort: a ref that's already gone (or a
+    /// repository that vanished mid-cleanup) isn't something callers need to
+    /// react to, so failures are swallowed rather than thrown.
+    func deleteRef(_ ref: String) async {
+        _ = try? await run("update-ref", "-d", ref)
+    }
+
+    /// True when an interactive rebase is in progress (ours or one started
+    /// from an external terminal), detected via `<gitdir>/rebase-merge` —
+    /// the directory `git rebase -i` uses (as opposed to `rebase-apply`,
+    /// used by the non-interactive/am-based path this app never invokes).
+    func isRebaseInProgress() async -> Bool {
+        guard let gitDir = try? await run("rev-parse", "--absolute-git-dir")
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !gitDir.isEmpty else { return false }
+        return FileManager.default.fileExists(atPath: gitDir + "/rebase-merge")
+    }
+
+    /// Aborts an in-progress rebase, restoring the pre-rebase HEAD.
+    func rebaseAbort() async throws {
+        _ = try? await run("rebase", "--abort")
+    }
+
+    /// Runs `git rebase -i` with the todo list and (optionally) a commit
+    /// message supplied via environment-injected editors instead of an
+    /// actual terminal editor.
+    ///
+    /// `GIT_SEQUENCE_EDITOR="cp '<todoPath>'"` replaces the rebase todo file
+    /// with ours; `GIT_EDITOR="cp '<messagePath>'"` replaces the message
+    /// editor git would otherwise open for a `reword`/`squash` step.
+    /// `-c core.editor` / `-c sequence.editor` do NOT work here — git only
+    /// consults those for the outer rebase invocation, not the internal
+    /// `commit --amend` it runs per `reword`/`squash` step, so a message set
+    /// that way never reaches the rewritten commit and the step silently
+    /// keeps git's own placeholder text instead (confirmed by hand before
+    /// relying on this).
+    ///
+    /// - Parameters:
+    ///   - base: revision to rebase onto, or `nil` to rewrite from the root.
+    ///   - todoPath: file containing the todo list, one line per commit.
+    ///   - messagePath: file containing the commit message, required when
+    ///     the plan includes a `reword` or `squash` step. When `nil`,
+    ///     `GIT_EDITOR=true` is used so no editor launches at all.
+    func rebaseInteractive(base: String?, todoPath: String, messagePath: String?) async throws {
+        var args = ["rebase", "-i"]
+        if let base { args.append(base) } else { args.append("--root") }
+        let sequenceEditor = "cp '\(todoPath)'"
+        let editor = messagePath.map { "cp '\($0)'" } ?? "true"
+        try await run(args, env: [
+            "GIT_SEQUENCE_EDITOR": sequenceEditor,
+            "GIT_EDITOR": editor
+        ])
+    }
+
+    /// Fast path for rewording HEAD's message alone: amends HEAD in place
+    /// using `-F <file>` for the message, skipping the editor entirely via
+    /// `-c core.editor=true`. No rebase needed since only HEAD moves.
+    func amendMessageOnly(messageFile: String) async throws {
+        try await run(["-c", "core.editor=true", "commit", "--amend", "-F", messageFile])
+    }
+
+    /// SHAs of commits reachable from `base` (exclusive) to `HEAD` that are
+    /// merge commits, used to double-check a history-edit range doesn't
+    /// touch one before running the rebase. `base: nil` checks all the way
+    /// back to the root commit.
+    func mergeCommitSHAs(base: String?) async -> [String] {
+        let range = base.map { "\($0)..HEAD" } ?? "HEAD"
+        guard let output = try? await run("rev-list", "--merges", range) else { return [] }
+        return output
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 
     // MARK: - Stash

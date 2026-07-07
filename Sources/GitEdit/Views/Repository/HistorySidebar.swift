@@ -11,6 +11,17 @@ struct HistorySidebar: View {
             content
         }
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
+        .overlay {
+            // Covers the whole sidebar (not just the list) so a menu-triggered
+            // move/drop can't be re-triggered mid-flight via the header either.
+            if viewModel.isEditingHistory {
+                ZStack {
+                    Color(nsColor: .controlBackgroundColor).opacity(0.5)
+                    ProgressView()
+                }
+                .allowsHitTesting(true)
+            }
+        }
     }
 
     private var header: some View {
@@ -53,10 +64,12 @@ struct HistorySidebar: View {
             .frame(maxWidth: .infinity)
         } else {
             List(selection: $viewModel.selectedCommitID) {
-                ForEach(viewModel.commits) { commit in
+                ForEach(Array(viewModel.commits.enumerated()), id: \.element.id) { index, commit in
                     CommitRow(
                         commit: commit,
-                        isUnpushed: viewModel.unpushedSHAs.contains(commit.id)
+                        isUnpushed: viewModel.unpushedSHAs.contains(commit.id),
+                        viewModel: viewModel,
+                        index: index
                     )
                     .tag(commit.id)
                 }

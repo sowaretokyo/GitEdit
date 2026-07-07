@@ -65,20 +65,31 @@ enum UndoableOperation: Equatable {
     case mergeCommit(summary: String, targetSHA: String)
     /// A branch switch (`checkout`/`switch`). Undo: checkout the prior branch.
     case branchSwitch(from: String, to: String)
+    /// A history edit (reword/squash/drop/reorder) performed via
+    /// `CommitHistoryEditor`. Undo: `reset --hard` to the pre-edit HEAD,
+    /// backed up in `refs/gitedit/undo`. Unlike the other cases this is
+    /// never derived from the reflog — `RepositoryViewModel` synthesizes it
+    /// directly from its own `commitEditBackup` state.
+    case editHistory(summary: String, targetSHA: String)
 
     /// True for operations undone via `git reset` (commit-like operations).
     var isResetBased: Bool {
         switch self {
-        case .commit, .amendCommit, .mergeCommit: return true
+        case .commit, .amendCommit, .mergeCommit, .editHistory: return true
         case .branchSwitch: return false
         }
     }
 
-    /// Only merges require `reset --hard` (they can bring in working-tree
-    /// changes beyond the index that `--soft` wouldn't undo).
+    /// Merges and history edits require `reset --hard`: merges can bring in
+    /// working-tree changes beyond the index that `--soft` wouldn't undo,
+    /// and a rebase-based history edit always leaves a clean tree matching
+    /// the new HEAD, so a soft reset would just surface the whole rewritten
+    /// range as staged changes instead of cleanly restoring the snapshot.
     var requiresHardReset: Bool {
-        if case .mergeCommit = self { return true }
-        return false
+        switch self {
+        case .mergeCommit, .editHistory: return true
+        case .commit, .amendCommit, .branchSwitch: return false
+        }
     }
 }
 

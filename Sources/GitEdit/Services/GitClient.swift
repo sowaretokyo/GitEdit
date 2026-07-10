@@ -239,6 +239,27 @@ final class GitClient: @unchecked Sendable {
         }
     }
 
+    /// Resolves the current branch's upstream into an explicit (remote, branch)
+    /// pair from the tracking config. Reading `branch.<name>.remote` /
+    /// `.merge` directly is unambiguous (unlike splitting the `remote/branch`
+    /// short form, which is undecidable when a remote name contains a slash),
+    /// and lets `push` target an upstream branch whose name differs from the
+    /// local branch — plain `git push` refuses that under `push.default=simple`.
+    /// Returns nil when there is no upstream (or it points at a local ref).
+    func upstreamTarget() async -> (remote: String, branch: String)? {
+        guard let branch = try? await currentBranch() else { return nil }
+        let remote = (try? await run("config", "--get", "branch.\(branch).remote"))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let mergeRef = (try? await run("config", "--get", "branch.\(branch).merge"))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // A "." remote means a local tracking branch (no real remote to push to).
+        guard let remote, !remote.isEmpty, remote != ".",
+              let mergeRef, !mergeRef.isEmpty else { return nil }
+        let prefix = "refs/heads/"
+        let branchName = mergeRef.hasPrefix(prefix) ? String(mergeRef.dropFirst(prefix.count)) : mergeRef
+        return (remote, branchName)
+    }
+
     // MARK: - Status
 
     func status() async throws -> [FileChange] {
@@ -983,26 +1004,35 @@ final class GitClient: @unchecked Sendable {
     }
 
     /// Fast-forward only pull. Fails if not fast-forwardable; caller can show the error.
-    func pull(remote: String = "origin") async throws {
+    /// A nil `remote` lets git resolve the tracked remote/branch from the
+    /// current branch's upstream config, so a non-origin upstream still works.
+    func pull(remote: String? = nil) async throws {
         try await runClassified(operation: .pull) {
-            try await self.run("pull", "--ff-only", "--progress", remote)
+            var args = ["pull", "--ff-only", "--progress"]
+            if let remote { args.append(remote) }
+            try await self.run(args)
         }
     }
 
     /// Pull that merges instead of fast-forwarding, for when the caller has
     /// already confirmed diverged local/remote histories should be combined.
-    func pullMerge(remote: String = "origin") async throws {
+    /// A nil `remote` defers to the branch's upstream config (see `pull`).
+    func pullMerge(remote: String? = nil) async throws {
         try await runClassified(operation: .pull) {
-            try await self.run("pull", "--no-rebase", "--progress", remote)
+            var args = ["pull", "--no-rebase", "--progress"]
+            if let remote { args.append(remote) }
+            try await self.run(args)
         }
     }
 
-    /// Push current branch to `remote`. If `setUpstream` is true, also `-u`.
-    func push(remote: String = "origin", branch: String? = nil, setUpstream: Bool = false) async throws {
+    /// Push the current branch. A nil `remote` lets git push to the branch's
+    /// configured upstream (any remote, not just origin); pass an explicit
+    /// `remote` + `branch` + `setUpstream: true` for the first push.
+    func push(remote: String? = nil, branch: String? = nil, setUpstream: Bool = false) async throws {
         try await runClassified(operation: .push) {
             var args = ["push", "--progress"]
             if setUpstream { args.append("-u") }
-            args.append(remote)
+            if let remote { args.append(remote) }
             if let branch { args.append(branch) }
             try await self.run(args)
         }

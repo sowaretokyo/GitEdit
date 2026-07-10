@@ -501,6 +501,7 @@
 "比較ブランチ" = "Compare branch";
 "プルリクエストを作成しました: #%d" = "Created pull request #%d";
 "先にブランチをプッシュしてください" = "Push the branch first";
+"先に未pushのコミットをプッシュしてください" = "Push your unpushed commits first";
 "ベースブランチと比較ブランチが同じです" = "Base and compare branches are the same";
 "タイトルを入力してください" = "Enter a title";
 "プルリクエストの作成に失敗しました" = "Couldn't create the pull request";

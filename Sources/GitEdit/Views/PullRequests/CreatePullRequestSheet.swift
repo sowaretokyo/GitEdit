@@ -175,7 +175,7 @@ struct CreatePullRequestSheet: View {
 
     private func submit() async {
         guard let ref = repoVM.githubRepository, let token = accountStore.currentToken else { return }
-        guard let created = await viewModel.create(ref: ref, token: token, hasUpstream: repoVM.hasUpstream) else { return }
+        guard let created = await viewModel.create(ref: ref, token: token, hasUpstream: repoVM.hasUpstream, ahead: repoVM.ahead) else { return }
 
         dismiss()
         await pullRequestsVM.load(ref: ref, token: token)

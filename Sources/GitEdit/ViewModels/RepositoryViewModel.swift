@@ -91,17 +91,9 @@ final class RepositoryViewModel: ObservableObject {
 
     let git: GitClient
 
-    // MARK: - File-system watcher (real-time auto-refresh)
-    private var fsWatcher: FileSystemWatcher?
-    private var debounceTask: Task<Void, Never>?
-
     init(repository: Repository) {
         self.repository = repository
         self.git = GitClient(repository: repository.url)
-    }
-
-    deinit {
-        // Tasks are released; FileSystemWatcher cleans itself up via deinit.
     }
 
     var hasRemotes: Bool { !remotes.isEmpty }
@@ -162,45 +154,9 @@ final class RepositoryViewModel: ObservableObject {
         // again (`commitEditBackup` is in-memory only), so clear it out
         // rather than let it accumulate as repo litter.
         await git.deleteRef(CommitHistoryEditor.Runner.backupRef)
-        startWatching()
-    }
-
-    // MARK: - File-system watching
-
-    private func startWatching() {
-        guard fsWatcher == nil else { return }
-        let repoPath = repository.url.path
-        fsWatcher = FileSystemWatcher(paths: [repoPath], latency: 0.25) { [weak self] paths in
-            Task { @MainActor [weak self] in
-                self?.scheduleAutoRefresh(touchedPaths: paths)
-            }
-        }
-    }
-
-    private func scheduleAutoRefresh(touchedPaths: Set<String>) {
-        // Skip noise from transient git lock files (every git command bounces these).
-        let names = touchedPaths.map { ($0 as NSString).lastPathComponent }
-        let onlyTransient = !names.isEmpty && names.allSatisfy {
-            $0 == "index.lock"
-            || $0 == "HEAD.lock"
-            || $0 == "COMMIT_EDITMSG"
-            || $0 == "MERGE_MSG"
-            || $0 == "ORIG_HEAD"
-            || $0.hasSuffix(".swp")
-            || $0.hasSuffix("~")
-        }
-        if onlyTransient { return }
-
-        debounceTask?.cancel()
-        debounceTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 250_000_000)
-            guard !Task.isCancelled, let self else { return }
-            await self.refreshBranchInfo()
-            await self.refreshDirty()
-            await self.refreshMergeState()
-            await self.refreshUndoState()
-            self.dataVersion &+= 1
-        }
+        // File-system auto-refresh is driven by `RepositoryView`'s single
+        // `RepositoryWatcher` (which filters `.git` churn); this view model no
+        // longer runs its own watcher to avoid double refreshes.
     }
 
     func refresh() async {
@@ -818,13 +774,38 @@ final class RepositoryViewModel: ObservableObject {
         defer { isPushing = false }
         let needsUpstream = !hasUpstream
         do {
-            try await git.push(branch: needsUpstream ? currentBranchName : nil, setUpstream: needsUpstream)
+            if needsUpstream {
+                // First push: git needs an explicit remote + branch to set the
+                // upstream. Prefer origin, else the sole/first remote. The
+                // "origin" fallback is only reachable if there are no remotes
+                // (the push button is gated on `hasRemotes`), in which case git
+                // fails and the error surfaces through the catch below.
+                let remote = defaultPushRemote ?? "origin"
+                try await git.push(remote: remote, branch: currentBranchName, setUpstream: true)
+            } else if let target = await git.upstreamTarget() {
+                // Existing upstream: push explicitly to the tracked remote and
+                // branch so a differing upstream branch name still works (plain
+                // `git push` refuses that under push.default=simple). `HEAD:`
+                // pushes the current commit to the upstream branch.
+                try await git.push(remote: target.remote, branch: "HEAD:\(target.branch)")
+            } else {
+                // Fallback (upstream unresolvable): defer to git's push config.
+                try await git.push()
+            }
             await refresh()
             bumpDataVersion()
             operationSuccess = needsUpstream ? L("ブランチをプッシュしました") : L("プッシュが完了しました")
         } catch {
             report(error, operation: .push)
         }
+    }
+
+    /// Remote to target for a first push (no upstream yet): prefer `origin`,
+    /// otherwise the sole/first configured remote. The push button is gated on
+    /// `hasRemotes`, so this is normally non-nil when a first push is possible.
+    private var defaultPushRemote: String? {
+        if remotes.contains(where: { $0.name == "origin" }) { return "origin" }
+        return remotes.first?.name
     }
 
     func dismissFeedback() {

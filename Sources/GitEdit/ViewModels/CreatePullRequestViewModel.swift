@@ -15,14 +15,19 @@ final class CreatePullRequestViewModel: ObservableObject {
         self.baseBranch = baseBranch
     }
 
-    /// Checked in this order because a same-branch mistake and an unpushed
-    /// branch are both more actionable than "you forgot a title".
-    private func validate(hasUpstream: Bool) -> String? {
+    /// Checked in this order because a same-branch mistake, an unpushed branch,
+    /// and unpushed commits are all more actionable than "you forgot a title".
+    private func validate(hasUpstream: Bool, ahead: Int) -> String? {
         if !baseBranch.isEmpty && baseBranch == headBranch {
             return L("ベースブランチと比較ブランチが同じです")
         }
         if !hasUpstream {
             return L("先にブランチをプッシュしてください")
+        }
+        // The remote branch exists but is behind local: opening a PR now would
+        // create it from a stale head. Push first so the PR reflects all commits.
+        if ahead > 0 {
+            return L("先に未pushのコミットをプッシュしてください")
         }
         if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return L("タイトルを入力してください")
@@ -30,8 +35,8 @@ final class CreatePullRequestViewModel: ObservableObject {
         return nil
     }
 
-    func create(ref: GitHubRepositoryRef, token: String, hasUpstream: Bool) async -> PullRequest? {
-        if let validationMessage = validate(hasUpstream: hasUpstream) {
+    func create(ref: GitHubRepositoryRef, token: String, hasUpstream: Bool, ahead: Int) async -> PullRequest? {
+        if let validationMessage = validate(hasUpstream: hasUpstream, ahead: ahead) {
             errorMessage = validationMessage
             return nil
         }

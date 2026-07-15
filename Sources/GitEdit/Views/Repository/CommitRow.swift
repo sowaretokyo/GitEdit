@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct CommitRow: View {
     let commit: Commit
     var isUnpushed: Bool = false

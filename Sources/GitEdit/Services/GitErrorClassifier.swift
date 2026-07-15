@@ -178,6 +178,27 @@ enum GitErrorClassifier {
             return .noUpstream
         }
 
+        // Stash-apply conflict — checked before the generic mergeConflict case
+        // below since both share the same underlying conflict vocabulary.
+        // Note: in practice `git stash apply` writes its `CONFLICT (...)`
+        // details to *stdout*, which this classifier never sees (only stderr
+        // is captured), so this rarely fires from stderr text alone. The
+        // reliable signal is the caller checking working-tree status after
+        // the call — see RepositoryViewModel's stash-apply failure handling.
+        // This match stays as a best-effort catch for stderr that does
+        // include conflict wording (e.g. from custom hooks).
+        if operation == .stashApply, contains(s, anyOf: [
+            "conflict (content)",
+            "conflict (modify/delete)",
+            "conflict (add/add)",
+            "conflict (rename/rename)",
+            "automatic merge failed",
+            "fix conflicts and then commit the result",
+            "merge conflict in"
+        ]) {
+            return .stashApplyConflict
+        }
+
         // Merge conflict (text-level).
         if contains(s, anyOf: [
             "conflict (content)",
@@ -270,7 +291,11 @@ enum GitErrorClassifier {
 
     // MARK: - Building the error payload
 
-    private static func build(
+    /// Builds a fully-classified error for a `kind` determined by means other
+    /// than stderr text matching (e.g. checking actual repo state). Not
+    /// `private` because `RepositoryViewModel` needs it for stash-apply
+    /// conflict detection — see the note on `.stashApplyConflict` above.
+    static func build(
         kind: GitOperationError.Kind,
         operation: GitOperationError.Operation,
         rawStderr: String,
@@ -560,6 +585,21 @@ extension GitErrorClassifier {
                     ]
                 )
 
+            case .stashApplyConflict:
+                return Copy(
+                    title: L("退避した変更の適用で競合が発生しました"),
+                    summary: L("退避内容と現在の変更が競合しました。退避は一覧に残っています。ファイルの競合を解消してください。"),
+                    suggestions: [
+                        .init(
+                            label: L("変更タブで競合ファイルを確認"),
+                            detail: L("競合しているファイルを編集して、問題のある行を修正します。"),
+                            action: .openCommitTab,
+                            isPrimary: true
+                        ),
+                        .init(label: L("詳細をコピー"), action: .copyDetails)
+                    ]
+                )
+
             case .mergeInProgress:
                 return Copy(
                     title: L("マージが進行中です"),
@@ -573,7 +613,7 @@ extension GitErrorClassifier {
             case .divergedHistory:
                 return Copy(
                     title: L("ローカルとリモートの履歴が分岐しています"),
-                    summary: L("Fast-forward でプルできません。ローカルにリモートにないコミットがあるため、マージかリベースが必要です。"),
+                    summary: L("Fast-forward でプルできません。ローカルにリモートにないコミットがあるため、マージが必要です。"),
                     suggestions: [
                         .init(label: L("フェッチして状況を確認"), action: .fetch, isPrimary: true),
                         .init(label: L("詳細をコピー"), action: .copyDetails)

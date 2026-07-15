@@ -63,4 +63,27 @@ final class GitStatusParserTests: XCTestCase {
         let output = "M\u{0}"
         XCTAssertTrue(GitStatusParser.parse(porcelainV1Z: output).isEmpty)
     }
+
+    func testUnmergedConflictEntry() {
+        let output = "UU conflict.txt\u{0}"
+        let result = GitStatusParser.parse(porcelainV1Z: output)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].indexStatus, "U")
+        XCTAssertEqual(result[0].workingStatus, "U")
+        XCTAssertNil(result[0].renameFrom)
+        XCTAssertTrue(result[0].isConflicted)
+    }
+
+    func testAddAddConflictEntryDoesNotConsumeNextField() {
+        // Regression guard: only R/C entries consume a second NUL field (the
+        // rename source). AA is a conflict state, not a rename, and must not
+        // swallow the following "M  next.swift" entry.
+        let output = "AA both.txt\u{0}M  next.swift\u{0}"
+        let result = GitStatusParser.parse(porcelainV1Z: output)
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual(result[0].path, "both.txt")
+        XCTAssertTrue(result[0].isConflicted)
+        XCTAssertEqual(result[1].path, "next.swift")
+        XCTAssertEqual(result[1].indexStatus, "M")
+    }
 }

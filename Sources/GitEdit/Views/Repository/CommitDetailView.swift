@@ -3,6 +3,9 @@ import SwiftUI
 struct CommitDetailView: View {
     let commit: Commit
     @ObservedObject var viewModel: HistoryViewModel
+    /// The GitHub repository to resolve `#123`-style issue references
+    /// against. `nil` when there's no recognized GitHub remote.
+    let issueRepository: GitHubRepositoryRef?
 
     private static let absoluteFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -32,7 +35,7 @@ struct CommitDetailView: View {
 
     private var metadataHeader: some View {
         VStack(alignment: .leading, spacing: DT.Space.sm) {
-            Text(commit.summary)
+            Text(IssueLinkFormatter.attributedMessage(commit.summary, repo: issueRepository))
                 .font(.title3.weight(.semibold))
                 .textSelection(.enabled)
                 .lineLimit(2)
@@ -64,7 +67,7 @@ struct CommitDetailView: View {
             .foregroundStyle(.secondary)
 
             if !displayBody.isEmpty {
-                Text(displayBody)
+                Text(IssueLinkFormatter.attributedMessage(displayBody, repo: issueRepository))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
@@ -160,11 +163,16 @@ struct CommitDetailView: View {
 
     // MARK: - Diff
 
+    @ViewBuilder
     private var fileDiff: some View {
-        DiffView(
-            diffText: viewModel.commitFileDiff,
-            isLoading: viewModel.isLoadingCommitFileDiff,
-            selectedFile: viewModel.selectedCommitFile?.displayPath
-        )
+        if let imageDiff = viewModel.commitImageDiff {
+            ImageDiffView(content: imageDiff)
+        } else {
+            DiffView(
+                diffText: viewModel.commitFileDiff,
+                isLoading: viewModel.isLoadingCommitFileDiff,
+                selectedFile: viewModel.selectedCommitFile?.displayPath
+            )
+        }
     }
 }

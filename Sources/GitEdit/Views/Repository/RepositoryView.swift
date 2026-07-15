@@ -6,10 +6,15 @@ import AppKit
 
 struct RepositoryView: View {
     let repository: Repository
+    /// Hides the "Current Repository" toolbar picker in standalone
+    /// per-repository windows, where switching the selected repository
+    /// would be meaningless (there's no sidebar-driven selection to switch).
+    let showsRepositoryPicker: Bool
 
     @StateObject private var repoVM: RepositoryViewModel
     @StateObject private var changesVM: ChangesViewModel
     @StateObject private var historyVM: HistoryViewModel
+    @StateObject private var prVM: PullRequestsViewModel
     @StateObject private var searchVM: SearchViewModel
     @StateObject private var explorerVM: ExplorerViewModel
 
@@ -22,6 +27,7 @@ struct RepositoryView: View {
     enum Tab: String, CaseIterable, Identifiable {
         case changes
         case history
+        case pullRequests
         case search
         case explorer
         var id: String { rawValue }
@@ -29,6 +35,7 @@ struct RepositoryView: View {
             switch self {
             case .changes: return L("変更")
             case .history: return L("履歴")
+            case .pullRequests: return L("プルリクエスト")
             case .search: return L("検索")
             case .explorer: return L("エクスプローラ")
             }
@@ -37,17 +44,22 @@ struct RepositoryView: View {
             switch self {
             case .changes: return "pencil"
             case .history: return "clock"
+            // "arrow.triangle.pull.request" doesn't exist as an SF Symbol;
+            // this is the closest stand-in until a dedicated icon is picked.
+            case .pullRequests: return "arrow.triangle.branch"
             case .search: return "magnifyingglass"
             case .explorer: return "folder"
             }
         }
     }
 
-    init(repository: Repository) {
+    init(repository: Repository, showsRepositoryPicker: Bool = true) {
         self.repository = repository
+        self.showsRepositoryPicker = showsRepositoryPicker
         _repoVM = StateObject(wrappedValue: RepositoryViewModel(repository: repository))
         _changesVM = StateObject(wrappedValue: ChangesViewModel(repository: repository))
         _historyVM = StateObject(wrappedValue: HistoryViewModel(repository: repository))
+        _prVM = StateObject(wrappedValue: PullRequestsViewModel())
         _searchVM = StateObject(wrappedValue: SearchViewModel(repository: repository.url))
         _explorerVM = StateObject(wrappedValue: ExplorerViewModel(repository: repository.url))
     }
@@ -71,6 +83,13 @@ struct RepositoryView: View {
             if newTab == .history && historyVM.commits.isEmpty {
                 Task { await historyVM.load() }
             }
+            if newTab == .pullRequests, prVM.pullRequests.isEmpty, prVM.loadErrorMessage == nil, !prVM.isLoadingList {
+                Task {
+                    guard let ref = repoVM.githubRepository,
+                          let token = AccountStore.shared.currentToken else { return }
+                    await prVM.load(ref: ref, token: token)
+                }
+            }
         }
         .onChange(of: repoVM.dataVersion) { _, _ in
             Task { await reload() }
@@ -85,6 +104,7 @@ struct RepositoryView: View {
         .onChange(of: changesVM.commitVersion) { _, _ in
             Task {
                 await repoVM.refreshBranchInfo()
+                await repoVM.refreshUndoState()
                 if selectedTab == .history {
                     await historyVM.load()
                 }
@@ -99,12 +119,38 @@ struct RepositoryView: View {
                 changesVM.clearLastError()
             }
         }
+        // Same bridging for HistoryViewModel's commit-editing flow: it owns
+        // the reword/squash/drop/reorder actions, but the undo/backup state
+        // and shared error banner live on RepositoryViewModel.
+        .onChange(of: historyVM.completedEdit) { _, newValue in
+            if let completion = newValue {
+                repoVM.recordCommitEditBackup(completion.backup, successMessage: completion.successMessage)
+                historyVM.completedEdit = nil
+            }
+        }
+        .onChange(of: historyVM.editError) { _, newValue in
+            if let err = newValue {
+                repoVM.operationError = err
+                historyVM.editError = nil
+            }
+        }
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                CurrentRepositoryPicker()
+            if showsRepositoryPicker {
+                ToolbarItem(placement: .navigation) {
+                    CurrentRepositoryPicker()
+                }
             }
             ToolbarItem(placement: .navigation) {
                 BranchPicker(repoVM: repoVM)
+            }
+            ToolbarItem(placement: .navigation) {
+                BranchIssueLink(repoVM: repoVM)
+            }
+            ToolbarItem(placement: .navigation) {
+                UndoToolbarButton(repoVM: repoVM)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                StashToolbarButton(repoVM: repoVM)
             }
             ToolbarItemGroup(placement: .primaryAction) {
                 NetworkOpsToolbarItems(repoVM: repoVM)
@@ -112,6 +158,15 @@ struct RepositoryView: View {
         }
         .sheet(isPresented: $repoVM.isShowingCreateBranchSheet) {
             CreateBranchSheet(repoVM: repoVM)
+        }
+        .sheet(isPresented: $repoVM.isShowingStashSheet) {
+            StashSheet(repoVM: repoVM)
+        }
+        .sheet(isPresented: $repoVM.isShowingPartialStashSheet) {
+            PartialStashSheet(repoVM: repoVM)
+        }
+        .sheet(item: $historyVM.pendingMessageEdit) { pending in
+            CommitMessageSheet(viewModel: historyVM, pending: pending)
         }
         .confirmationDialog(
             L("未コミットの変更があります"),
@@ -124,12 +179,35 @@ struct RepositoryView: View {
             Button(L("このまま切り替え"), role: .destructive) {
                 Task { await repoVM.confirmSwitchAfterDirtyWarning() }
             }
+            Button(L("変更を退避して切り替え")) {
+                Task { await repoVM.stashThenSwitchAfterDirtyWarning() }
+            }
             Button(L("キャンセル"), role: .cancel) {
                 repoVM.cancelSwitchAfterDirtyWarning()
             }
         } message: { _ in
             Text(L("先に変更をコミットするか退避してから切り替えてください。"))
         }
+        .confirmationDialog(
+            L("リモートと分岐しています"),
+            isPresented: Binding(
+                get: { repoVM.pendingMergePull },
+                set: { if !$0 { repoVM.cancelMergePull() } }
+            )
+        ) {
+            Button(L("マージして取り込む")) {
+                Task { await repoVM.confirmMergePull() }
+            }
+            Button(L("キャンセル"), role: .cancel) {
+                repoVM.cancelMergePull()
+            }
+        } message: {
+            Text(L("リモートにローカルとは別のコミットがあります。マージして取り込みますか？"))
+        }
+        .modifier(BranchActionDialogs(repoVM: repoVM))
+        .modifier(StashActionDialogs(repoVM: repoVM))
+        .modifier(UndoActionDialogs(repoVM: repoVM))
+        .modifier(HistoryEditDialogs(historyVM: historyVM))
         .overlay(alignment: .bottomTrailing) {
             OperationFeedbackBanner(repoVM: repoVM)
         }
@@ -229,6 +307,8 @@ struct RepositoryView: View {
             ChangesSidebar(viewModel: changesVM)
         case .history:
             HistorySidebar(viewModel: historyVM)
+        case .pullRequests:
+            PullRequestSidebar(repoVM: repoVM, viewModel: prVM)
         case .search:
             SearchSidebar(
                 viewModel: searchVM,
@@ -252,9 +332,15 @@ struct RepositoryView: View {
             ChangesDetailPane(viewModel: changesVM, repoVM: repoVM)
         case .history:
             if let commit = historyVM.selectedCommit {
-                CommitDetailView(commit: commit, viewModel: historyVM)
+                CommitDetailView(commit: commit, viewModel: historyVM, issueRepository: repoVM.githubRepository)
             } else {
                 pickCommitPrompt
+            }
+        case .pullRequests:
+            if let pr = prVM.selectedPullRequest {
+                PullRequestDetailView(pullRequest: pr, repoVM: repoVM, viewModel: prVM)
+            } else {
+                pickPRPrompt
             }
         case .search:
             if let result = viewedGrepResult {
@@ -322,6 +408,225 @@ struct RepositoryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var pickPRPrompt: some View {
+        VStack(spacing: DT.Space.sm) {
+            Spacer()
+            Image(systemName: "arrow.triangle.branch")
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text(L("左のリストからプルリクエストを選択"))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+}
+
+// MARK: - Branch action confirmation dialogs (merge / delete / force-delete)
+
+/// Extracted into its own `ViewModifier` so the type checker evaluates these
+/// three `confirmationDialog`s independently of `RepositoryView.body`'s
+/// already-long modifier chain.
+private struct BranchActionDialogs: ViewModifier {
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                L("「%@」を「%@」にマージしますか？", repoVM.pendingMergeBranch?.name ?? "", repoVM.currentBranchName ?? ""),
+                isPresented: Binding(
+                    get: { repoVM.pendingMergeBranch != nil },
+                    set: { if !$0 { repoVM.cancelMerge() } }
+                ),
+                presenting: repoVM.pendingMergeBranch
+            ) { _ in
+                Button(L("マージ")) {
+                    Task { await repoVM.confirmMerge() }
+                }
+                Button(L("キャンセル"), role: .cancel) {
+                    repoVM.cancelMerge()
+                }
+            } message: { branch in
+                Text(L("「%@」の変更が現在のブランチに取り込まれます。", branch.name))
+            }
+            .confirmationDialog(
+                L("「%@」を削除しますか？", repoVM.pendingDeleteBranch?.name ?? ""),
+                isPresented: Binding(
+                    get: { repoVM.pendingDeleteBranch != nil },
+                    set: { if !$0 { repoVM.cancelDelete() } }
+                ),
+                presenting: repoVM.pendingDeleteBranch
+            ) { _ in
+                Button(L("削除"), role: .destructive) {
+                    Task { await repoVM.confirmDeleteBranch() }
+                }
+                Button(L("キャンセル"), role: .cancel) {
+                    repoVM.cancelDelete()
+                }
+            } message: { _ in
+                Text(L("このブランチをローカルから削除します。"))
+            }
+            .confirmationDialog(
+                L("未マージのブランチです"),
+                isPresented: Binding(
+                    get: { repoVM.pendingForceDeleteBranch != nil },
+                    set: { if !$0 { repoVM.cancelForceDelete() } }
+                ),
+                presenting: repoVM.pendingForceDeleteBranch
+            ) { _ in
+                Button(L("強制削除"), role: .destructive) {
+                    Task { await repoVM.confirmForceDeleteBranch() }
+                }
+                Button(L("キャンセル"), role: .cancel) {
+                    repoVM.cancelForceDelete()
+                }
+            } message: { branch in
+                Text(L("「%@」にはまだマージされていない変更があります。強制削除するとこれらのコミットは失われる可能性があります。", branch.name))
+            }
+    }
+}
+
+// MARK: - Stash action confirmation dialog (drop)
+
+/// Extracted for the same reason as `BranchActionDialogs`: keeps `body`'s
+/// modifier chain from growing further.
+private struct StashActionDialogs: ViewModifier {
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                L("退避を削除しますか？"),
+                isPresented: Binding(
+                    get: { repoVM.pendingStashDrop != nil },
+                    set: { if !$0 { repoVM.cancelDropStash() } }
+                ),
+                presenting: repoVM.pendingStashDrop
+            ) { _ in
+                Button(L("退避を削除"), role: .destructive) {
+                    Task { await repoVM.confirmDropStash() }
+                }
+                Button(L("キャンセル"), role: .cancel) {
+                    repoVM.cancelDropStash()
+                }
+            } message: { _ in
+                Text(L("この退避を削除すると元に戻せません。"))
+            }
+    }
+}
+
+// MARK: - History edit dialogs (drop confirmation)
+
+/// Extracted for the same reason as `BranchActionDialogs` / `StashActionDialogs`.
+private struct HistoryEditDialogs: ViewModifier {
+    @ObservedObject var historyVM: HistoryViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                L("このコミットを削除しますか？"),
+                isPresented: Binding(
+                    get: { historyVM.pendingDropCommit != nil },
+                    set: { if !$0 { historyVM.cancelDrop() } }
+                ),
+                presenting: historyVM.pendingDropCommit
+            ) { _ in
+                Button(L("コミットを削除"), role: .destructive) {
+                    Task { await historyVM.confirmDrop() }
+                }
+                Button(L("キャンセル"), role: .cancel) {
+                    historyVM.cancelDrop()
+                }
+            } message: { _ in
+                Text(L("このコミットを削除すると、変更内容が履歴から取り除かれます。"))
+            }
+    }
+}
+
+// MARK: - Undo action dialogs (confirm / blocked notice)
+
+/// Extracted for the same reason as `BranchActionDialogs` / `StashActionDialogs`.
+private struct UndoActionDialogs: ViewModifier {
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog(
+                undoTitle(repoVM.pendingUndo),
+                isPresented: Binding(
+                    get: { repoVM.pendingUndo != nil },
+                    set: { if !$0 { repoVM.cancelUndo() } }
+                ),
+                presenting: repoVM.pendingUndo
+            ) { op in
+                Button(L("取り消す"), role: destructiveRole(op)) {
+                    Task { await repoVM.confirmUndo() }
+                }
+                Button(L("キャンセル"), role: .cancel) {
+                    repoVM.cancelUndo()
+                }
+            } message: { op in
+                Text(undoMessage(op))
+            }
+            .confirmationDialog(
+                L("この操作は取り消せません"),
+                isPresented: Binding(
+                    get: { repoVM.undoBlockedMessage != nil },
+                    set: { if !$0 { repoVM.dismissUndoBlocked() } }
+                )
+            ) {
+                Button(L("閉じる"), role: .cancel) {
+                    repoVM.dismissUndoBlocked()
+                }
+            } message: {
+                Text(repoVM.undoBlockedMessage ?? "")
+            }
+    }
+
+    private func destructiveRole(_ op: UndoableOperation) -> ButtonRole? {
+        op.requiresHardReset && repoVM.hasUncommittedChanges ? .destructive : nil
+    }
+
+    private func undoTitle(_ op: UndoableOperation?) -> String {
+        guard let op else { return "" }
+        switch op {
+        case .commit(let summary, _):
+            return L("コミット『%@』を取り消しますか？", summary)
+        case .amendCommit:
+            return L("直前の修正（amend）を取り消しますか？")
+        case .mergeCommit(let summary, _):
+            return L("マージ『%@』を取り消しますか？", summary)
+        case .branchSwitch:
+            return L("ブランチ切替を取り消しますか？")
+        case .editHistory(let summary, _):
+            return L("『%@』を取り消しますか？", summary)
+        }
+    }
+
+    private func undoMessage(_ op: UndoableOperation) -> String {
+        var message: String
+        switch op {
+        case .commit:
+            message = L("このコミットを取り消し、変更はステージされた状態に戻します。")
+        case .amendCommit:
+            message = L("amend を取り消し、修正前のコミットに戻します。")
+        case .mergeCommit:
+            message = L("このマージを取り消し、マージ前の状態に戻します。")
+        case .branchSwitch(let from, _):
+            message = L("「%@」に戻ります。", from)
+        case .editHistory:
+            // Already states the uncommitted-changes caveat unconditionally,
+            // so skip the generic suffix appended below for the other cases.
+            return L("編集前の状態に戻します。作業中の変更がある場合は失われます。")
+        }
+        if op.requiresHardReset, repoVM.hasUncommittedChanges {
+            message += L("未コミットの変更は失われます。")
+        }
+        return message
     }
 }
 
@@ -476,6 +781,52 @@ private struct SuccessBanner: View {
     }
 }
 
+// MARK: - Stash Toolbar Button
+
+struct StashToolbarButton: View {
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    var body: some View {
+        Button {
+            repoVM.isShowingStashSheet = true
+        } label: {
+            Label(L("退避"), systemImage: "archivebox")
+        }
+        .help(L("退避した変更"))
+        .overlay(alignment: .topTrailing) {
+            if !repoVM.stashes.isEmpty {
+                Text("\(repoVM.stashes.count)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color(nsColor: .systemGray), in: Capsule())
+                    .offset(x: 6, y: -4)
+            }
+        }
+    }
+}
+
+// MARK: - Undo Toolbar Button
+
+struct UndoToolbarButton: View {
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    var body: some View {
+        Button {
+            repoVM.requestUndo()
+        } label: {
+            Label(L("直前の操作を取り消す"), systemImage: "arrow.uturn.backward")
+        }
+        .help(
+            repoVM.undoState == .none
+                ? L("取り消せる操作はありません（作業ツリーの変更・退避・プッシュ済みの操作は取り消し対象外）")
+                : L("直前の操作を取り消す")
+        )
+        .disabled(repoVM.undoState == .none)
+    }
+}
+
 // MARK: - Network Ops Toolbar Items (extracted from old RepositoryDetailView)
 
 struct NetworkOpsToolbarItems: View {
@@ -555,6 +906,28 @@ struct NetworkOpsToolbarItems: View {
                         .offset(x: 6, y: -4)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Branch Issue Link (toolbar shortcut)
+
+/// Toolbar shortcut to the GitHub issue referenced by the current branch's
+/// name (e.g. branch `123-fix-bug` links to issue #123). Hidden entirely
+/// when there's no recognized GitHub remote or the branch name doesn't
+/// encode an issue number.
+private struct BranchIssueLink: View {
+    @ObservedObject var repoVM: RepositoryViewModel
+
+    var body: some View {
+        if let url = repoVM.branchIssueURL, let number = Int(url.lastPathComponent) {
+            Link(destination: url) {
+                Image(systemName: "arrow.up.forward.square")
+            }
+            .help(L("Issue #%d を開く", number))
+            .accessibilityLabel(L("Issue #%d を開く", number))
+        } else {
+            EmptyView()
         }
     }
 }

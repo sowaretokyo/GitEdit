@@ -156,6 +156,15 @@ final class GitErrorClassifierTests: XCTestCase {
         XCTAssertEqual(err.kind, .divergedHistory)
     }
 
+    /// The diverged-history flow guides the user to a merge-pull confirmation
+    /// dialog, not a rebase — the summary text must not suggest rebasing.
+    func test_divergedHistorySummary_doesNotMentionRebase() {
+        let stderr = "fatal: Not possible to fast-forward, aborting."
+        let err = GitErrorClassifier.classify(stderr: stderr, operation: .pull)
+        XCTAssertFalse(err.summary.contains("リベース"))
+        XCTAssertFalse(err.summary.lowercased().contains("rebase"))
+    }
+
     func test_mergeConflict_isClassified() {
         let stderr = """
         Auto-merging README.md

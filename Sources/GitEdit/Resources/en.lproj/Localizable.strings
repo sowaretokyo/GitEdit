@@ -6,6 +6,13 @@
 "アップデートを確認…" = "Check for Updates…";
 "設定…" = "Settings…";
 
+/* ===== Multi-window ===== */
+"新しいウィンドウで開く" = "Open in New Window";
+"リポジトリを新しいウィンドウで開く" = "Open Repository in New Window";
+"リポジトリが見つかりません" = "Repository Not Found";
+"このリポジトリはリストから削除されたか、移動された可能性があります。" = "This repository may have been removed from the list or has moved.";
+"ウィンドウを閉じる" = "Close Window";
+
 /* ===== Settings ===== */
 "一般" = "General";
 "情報" = "About";
@@ -92,6 +99,14 @@
 "Summary（必須）" = "Summary (required)";
 "Description" = "Description";
 "%d 件を %@ にコミット" = "Commit %d files to %@";
+"未ステージの変更" = "Unstaged Changes";
+"ステージ済みの変更" = "Staged Changes";
+"このかたまりをステージ" = "Stage Hunk";
+"このかたまりをアンステージ" = "Unstage Hunk";
+"選択した %d 行をステージ" = "Stage %d Selected Lines";
+"選択した %d 行をアンステージ" = "Unstage %d Selected Lines";
+"選択をクリア" = "Clear Selection";
+"このファイルは部分ステージできません（バイナリまたはリネーム）" = "This file can't be partially staged (binary or rename).";
 
 /* ===== File picker ===== */
 "ファイルパスで絞り込み" = "Filter by file path";
@@ -127,6 +142,9 @@
 "コミットメッセージ（↑↓ で過去のメッセージを呼び出し）" = "Commit message (↑↓ recalls history)";
 "↑↓ で履歴" = "↑↓ for history";
 "ステージされた変更がありません。チェックボックスでファイルを含めてください。" = "Nothing is staged. Use the checkboxes to include files.";
+"直前のコミットを修正" = "Amend last commit";
+"プッシュ済みのコミットは修正できません" = "A pushed commit can't be amended";
+"直前のコミットに変更内容とメッセージを反映します" = "Applies your staged changes and message to the last commit";
 
 /* ===== History view ===== */
 "コミット履歴" = "Commit History";
@@ -155,6 +173,37 @@
 "ブランチを作成しました: %@" = "Created %@";
 "マージしました: %@" = "Merged %@";
 "ブランチを削除しました: %@" = "Deleted %@";
+"現在のブランチにマージ" = "Merge Into Current Branch";
+"ブランチを削除…" = "Delete Branch…";
+"「%@」を「%@」にマージしますか？" = "Merge \"%@\" into \"%@\"?";
+"「%@」の変更が現在のブランチに取り込まれます。" = "Changes from \"%@\" will be merged into the current branch.";
+"マージ" = "Merge";
+"「%@」を削除しますか？" = "Delete \"%@\"?";
+"このブランチをローカルから削除します。" = "This removes the branch from your local repository.";
+"削除" = "Delete";
+"未マージのブランチです" = "This branch isn't fully merged";
+"「%@」にはまだマージされていない変更があります。強制削除するとこれらのコミットは失われる可能性があります。" = "\"%@\" has changes that haven't been merged yet. Force-deleting may lose those commits.";
+"強制削除" = "Force Delete";
+
+/* ===== Issue links ===== */
+"Issue #%d を開く" = "Open issue #%d";
+
+/* ===== Merge conflict resolution ===== */
+"マージを完了しました" = "Merge completed";
+"マージを中止しました" = "Merge aborted";
+"マージ競合の解決" = "Resolve merge conflicts";
+"「%@」をマージ中" = "Merging \"%@\"";
+"%d 件のファイルが競合しています" = "%d file(s) still conflicting";
+"すべての競合が解決されました。マージを続行できます。" = "All conflicts resolved. You can continue the merge.";
+"マージを続行" = "Continue Merge";
+"マージを中止" = "Abort Merge";
+"マージを中止しますか？" = "Abort the merge?";
+"マージ前の状態に戻ります。競合の解決内容は失われます。" = "This restores the pre-merge state. Your conflict resolutions will be lost.";
+"自分の変更を採用" = "Use My Changes";
+"相手の変更を採用" = "Use Their Changes";
+"エディタで編集" = "Edit in Editor";
+"解決済みにする" = "Mark as Resolved";
+"競合" = "Conflict";
 
 /* ===== Network ops ===== */
 "フェッチ" = "Fetch";
@@ -171,6 +220,10 @@
 "未プッシュのブランチ" = "Unpushed branch";
 "このブランチはまだプッシュされていません" = "This branch hasn't been pushed yet";
 "コマンドの実行に失敗しました" = "Command failed";
+"リモートと分岐しています" = "Your branch has diverged from the remote";
+"リモートにローカルとは別のコミットがあります。マージして取り込みますか？" = "The remote has commits that aren't in your branch. Merge them in?";
+"マージして取り込む" = "Merge and integrate";
+"マージしてプルしました" = "Merged and pulled";
 
 /* ===== Create branch ===== */
 "新しいブランチ" = "New Branch";
@@ -305,7 +358,7 @@
 "現在どのブランチにもいません。先にブランチを作成または切り替えてから操作してください。" = "You're not on any branch right now. Create or switch to a branch first.";
 "リモートホストの SSH 鍵が `known_hosts` に登録されていないか、変更されています。一度ターミナルから接続して鍵を受け入れてください。" = "The remote host's SSH key isn't in `known_hosts`, or it has changed. Connect once from the terminal to accept the key.";
 "前回のマージがまだ完了していません。競合を解消してコミットするか、マージを中止してから再操作してください。" = "A previous merge hasn't finished yet. Resolve the conflicts and commit, or abort the merge before retrying.";
-"Fast-forward でプルできません。ローカルにリモートにないコミットがあるため、マージかリベースが必要です。" = "Pull can't fast-forward — you have local commits the remote doesn't. You'll need to merge or rebase.";
+"Fast-forward でプルできません。ローカルにリモートにないコミットがあるため、マージが必要です。" = "Pull can't fast-forward — you have local commits the remote doesn't, so a merge is needed.";
 "リモートリポジトリが見つからないか、アクセス権がありません。URL とアクセス権限を確認してください。" = "Couldn't find the remote repository, or you don't have access. Double-check the URL and your permissions.";
 "詳細はログをご確認ください。" = "Please check the log for details.";
 
@@ -330,3 +383,181 @@
 "origin に同名ブランチを作成し、以降のプッシュ／プルで自動的に追跡されるようにします。" = "Creates a same-named branch on origin so future pushes/pulls track it automatically.";
 "GitHub に再サインインして、有効なトークンを発行し直します。" = "Sign back into GitHub and issue a fresh token.";
 "ターミナルで以下を実行: git config --global user.name \"Your Name\" / git config --global user.email \"you@example.com\"" = "In Terminal: git config --global user.name \"Your Name\" / git config --global user.email \"you@example.com\"";
+
+/* ===== Sidebar — repository organization ===== */
+"ピン留め済み" = "Pinned";
+"ピン留め" = "Pin";
+"ピン留めを解除" = "Unpin";
+"グループへ移動" = "Move to Group";
+"グループから外す" = "Remove from Group";
+"新規グループ…" = "New Group…";
+"新しいグループ" = "New Group";
+"グループ名を変更" = "Rename Group";
+"グループ名" = "Group name";
+"例: 仕事" = "e.g. Work";
+"名前を変更…" = "Rename…";
+"グループを削除" = "Delete Group";
+"その他" = "Other";
+"グループ「%@」を削除しますか？" = "Delete the group \"%@\"?";
+"グループを削除してもリポジトリは残ります。" = "Repositories stay; only the group is removed.";
+"リストから削除" = "Remove from List";
+
+/* ===== Stash ===== */
+"変更を退避して切り替え" = "Stash & Switch";
+"退避" = "Stash";
+"退避した変更" = "Stashed Changes";
+"退避する" = "Stash";
+"退避メッセージ（任意）" = "Stash message (optional)";
+"未追跡ファイルも含める" = "Include untracked files";
+"復元" = "Apply";
+"復元して退避を削除" = "Pop (apply & remove)";
+"退避を削除" = "Delete Stash";
+"退避を削除しますか？" = "Delete this stash?";
+"この退避を削除すると元に戻せません。" = "Deleting this stash cannot be undone.";
+"変更を退避しました" = "Changes stashed";
+"退避した変更を復元しました" = "Stash applied";
+"退避を削除しました" = "Stash deleted";
+"退避された変更はありません" = "No stashed changes";
+"%@ から切り替え前に退避" = "Auto-stash before switching from %@";
+"退避した変更の適用で競合が発生しました" = "Applying the stash caused conflicts";
+"退避内容と現在の変更が競合しました。退避は一覧に残っています。ファイルの競合を解消してください。" = "The stash conflicts with your current changes. The stash is kept in the list — resolve the conflicts in the files.";
+"退避一覧が変化しました。もう一度お試しください。" = "The stash list changed. Please try again.";
+"退避に失敗しました" = "Failed to stash";
+"退避の復元" = "Apply Stash";
+"退避の復元に失敗しました" = "Failed to apply stash";
+"退避の削除" = "Delete Stash";
+"退避の削除に失敗しました" = "Failed to delete stash";
+
+/* ===== Partial stash ===== */
+"一部だけ退避…" = "Stash Selection…";
+"変更を一部だけ退避" = "Stash Selected Changes";
+"退避する変更を選択してください。選択したかたまり・行だけが退避され、残りは作業ツリーに残ります。" = "Choose the changes to stash. Only the selected hunks and lines are stashed; the rest stay in your working tree.";
+"選択を退避" = "Stash Selection";
+"選択中: %d 件" = "%d selected";
+"退避できる変更がありません" = "No changes available to stash";
+"部分退避には git 2.35 以降が必要です" = "Partial stash requires git 2.35 or newer";
+"変更を一部退避しました" = "Stashed the selected changes";
+"部分退避" = "Partial stash";
+"部分退避に失敗しました" = "Failed to stash the selection";
+"退避内容を表示" = "Show stash contents";
+"退避内容を隠す" = "Hide stash contents";
+"この退避にファイルはありません" = "This stash has no files";
+
+/* ===== Undo ===== */
+"直前の操作を取り消す" = "Undo last action";
+"取り消しました: %@" = "Undone: %@";
+"コミット『%@』を取り消しますか？" = "Undo the commit \"%@\"?";
+"このコミットを取り消し、変更はステージされた状態に戻します。" = "Undoes this commit and returns its changes to the staging area.";
+"直前の修正（amend）を取り消しますか？" = "Undo the amend?";
+"amend を取り消し、修正前のコミットに戻します。" = "Reverts the amend and restores the commit as it was before.";
+"マージ『%@』を取り消しますか？" = "Undo the merge \"%@\"?";
+"このマージを取り消し、マージ前の状態に戻します。" = "Undoes this merge and restores the pre-merge state.";
+"ブランチ切替を取り消しますか？" = "Undo the branch switch?";
+"「%@」に戻ります。" = "Switches back to \"%@\".";
+"未コミットの変更は失われます。" = "Uncommitted changes will be lost.";
+"取り消す" = "Undo";
+"この操作は取り消せません" = "This action can't be undone";
+"プッシュ済みのコミットが含まれるため取り消せません。取り消すとリモートとの整合が崩れ、強制プッシュが必要になります。" = "It includes commits already pushed to the remote. Undoing would break sync with the remote and require a force push.";
+"取り消せる操作はありません（作業ツリーの変更・退避・プッシュ済みの操作は取り消し対象外）" = "Nothing to undo (working-tree edits, stashes, and pushed operations can't be undone)";
+"取り消し" = "Undo";
+
+/* ===== Diff display (unified/split + image diff) ===== */
+"統合" = "Unified";
+"分割" = "Split";
+"差分の表示形式" = "Diff display style";
+"変更前" = "Before";
+"変更後" = "After";
+"新規追加された画像" = "Newly added image";
+"削除された画像" = "Deleted image";
+"画像を表示できません" = "Can't display this image";
+"%d × %d ピクセル" = "%d × %d px";
+
+/* ===== Pull requests (list/detail/checkout + create) ===== */
+"プルリクエスト" = "Pull Requests";
+"プルリクエストを表示するには GitHub にサインインしてください" = "Sign in to GitHub to view pull requests";
+"このリポジトリは GitHub ではありません" = "This repository isn't hosted on GitHub";
+"オープンなプルリクエストはありません" = "No open pull requests";
+"プルリクエストを読み込めませんでした" = "Couldn't load pull requests";
+"上位 %d 件を表示しています" = "Showing the first %d";
+"ブラウザで開く" = "Open in browser";
+"ドラフト" = "Draft";
+"オープン" = "Open";
+"クローズ" = "Closed";
+"マージ済み" = "Merged";
+"チェック" = "Checks";
+"すべてのチェックが成功" = "All checks passed";
+"チェックが失敗しています" = "Some checks failed";
+"チェックを実行中" = "Checks running";
+"チェックはありません" = "No checks";
+"成功 %d ・失敗 %d ・実行中 %d" = "%d passed · %d failed · %d running";
+"チェックアウト" = "Check out";
+"ブランチをチェックアウトしました: %@" = "Checked out branch: %@";
+"フォークからのプルリクエストは閲覧のみ対応しています（チェックアウト後はプッシュできません）" = "Pull requests from forks are view-only; you can't push back after checking out";
+"新規プルリクエスト" = "New pull request";
+"プルリクエストを作成" = "Create pull request";
+"タイトル" = "Title";
+"本文" = "Description";
+"ベースブランチ" = "Base branch";
+"比較ブランチ" = "Compare branch";
+"プルリクエストを作成しました: #%d" = "Created pull request #%d";
+"先にブランチをプッシュしてください" = "Push the branch first";
+"先に未pushのコミットをプッシュしてください" = "Push your unpushed commits first";
+"ベースブランチと比較ブランチが同じです" = "Base and compare branches are the same";
+"タイトルを入力してください" = "Enter a title";
+"プルリクエストの作成に失敗しました" = "Couldn't create the pull request";
+"GitHub API のレート制限に達しました。%@ 以降に再試行してください" = "Reached the GitHub API rate limit. Try again after %@";
+"権限が不足しています。再サインインしてください" = "Insufficient permissions. Please sign in again";
+"再サインイン" = "Sign in again";
+"左のリストからプルリクエストを選択" = "Select a pull request from the list";
+
+/* ===== Pull requests — reviews (L3) ===== */
+"レビュー" = "Reviews";
+"コメント" = "Comment";
+"承認" = "Approve";
+"変更をリクエスト" = "Request changes";
+"コメントを入力してください" = "Enter a comment";
+"承認しました" = "Approved";
+"変更をリクエストしました" = "Requested changes";
+"コメントを投稿しました" = "Comment posted";
+"レビューの投稿に失敗しました" = "Couldn't submit the review";
+"コメントを書く…" = "Write a comment…";
+
+/* ===== Pull requests — merge (L4) ===== */
+"マージ方法" = "Merge method";
+"マージコミット" = "Merge commit";
+"スカッシュしてマージ" = "Squash and merge";
+"リベースしてマージ" = "Rebase and merge";
+"プルリクエストをマージしますか？" = "Merge this pull request?";
+"マージしました" = "Merged";
+"ドラフトのためマージできません" = "Can't merge a draft";
+"コンフリクトがあるためマージできません" = "Can't merge due to conflicts";
+"マージ可否を判定中です" = "Checking whether this can be merged";
+"ブランチ保護によりマージがブロックされています" = "Merging is blocked by branch protection";
+"チェックが失敗していますが、マージしますか？" = "Some checks are failing. Merge anyway?";
+
+/* ===== Commit history editing (reword / squash / drop / reorder) ===== */
+"メッセージを編集…" = "Edit Message…";
+"ひとつ前のコミットに統合…" = "Combine with Previous Commit…";
+"1つ上へ移動" = "Move Up";
+"1つ下へ移動" = "Move Down";
+"このコミットを削除" = "Delete This Commit";
+"コミットメッセージを編集" = "Edit Commit Message";
+"コミットを統合" = "Combine Commits";
+"統合後のメッセージ" = "Message After Combining";
+"このコミットを削除しますか？" = "Delete this commit?";
+"このコミットを削除すると、変更内容が履歴から取り除かれます。" = "Deleting this commit removes its changes from history.";
+"コミットを削除" = "Delete Commit";
+"メッセージを更新しました" = "Updated the commit message.";
+"コミットを統合しました" = "Combined the commits.";
+"コミットを削除しました" = "Deleted the commit.";
+"コミットを並び替えました" = "Reordered the commits.";
+"編集前の状態に戻します。作業中の変更がある場合は失われます。" = "This restores the state before the edit. Any uncommitted changes will be lost.";
+"『%@』を取り消しますか？" = "Undo \"%@\"?";
+"コミットの編集を中止し、元の状態に戻しました（競合または適用できない変更のため）。" = "Cancelled the edit and restored the previous state (due to a conflict or changes that couldn't be applied).";
+"作業ツリーに変更があります。コミットまたは退避してから編集してください。" = "You have uncommitted changes. Commit or stash them before editing history.";
+"マージコミットを含む範囲は編集できません。" = "History that includes a merge commit can't be edited.";
+"プッシュ済みのコミットは編集できません。" = "Pushed commits can't be edited.";
+"メッセージ編集" = "Message Edit";
+"コミットの統合" = "Combine";
+"コミットの削除" = "Delete Commit";
+"並び替え" = "Reorder";

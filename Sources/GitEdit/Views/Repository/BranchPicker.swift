@@ -109,7 +109,15 @@ struct BranchPopover: View {
                                 onSelect: {
                                     dismiss()
                                     Task { await repoVM.requestSwitchBranch(branch) }
-                                }
+                                },
+                                onMerge: (repoVM.currentBranchName != nil && !branch.isCurrent) ? {
+                                    dismiss()
+                                    repoVM.requestMerge(branch)
+                                } : nil,
+                                onDelete: !branch.isCurrent ? {
+                                    dismiss()
+                                    repoVM.requestDeleteBranch(branch)
+                                } : nil
                             )
                         }
                     }
@@ -177,6 +185,8 @@ struct BranchRow: View {
     let branch: Branch
     let isCurrent: Bool
     let onSelect: () -> Void
+    var onMerge: (() -> Void)? = nil
+    var onDelete: (() -> Void)? = nil
 
     @State private var isHovering = false
 
@@ -239,6 +249,22 @@ struct BranchRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
+        .contextMenu {
+            if let onMerge {
+                Button {
+                    onMerge()
+                } label: {
+                    Label(L("現在のブランチにマージ"), systemImage: "arrow.triangle.merge")
+                }
+            }
+            if let onDelete {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label(L("ブランチを削除…"), systemImage: "trash")
+                }
+            }
+        }
     }
 }
 

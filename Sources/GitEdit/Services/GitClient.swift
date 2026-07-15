@@ -39,8 +39,8 @@ final class GitClient: @unchecked Sendable {
     }
 
     @discardableResult
-    func run(_ arguments: [String]) async throws -> String {
-        try await Self.runGit(arguments, cwd: repositoryURL)
+    func run(_ arguments: [String], stdin: Data? = nil, env: [String: String]? = nil) async throws -> String {
+        try await Self.runGit(arguments, cwd: repositoryURL, stdin: stdin, env: env)
     }
 
     // MARK: - Static runner (used by clone/init that don't have a repo yet)
@@ -105,20 +105,33 @@ final class GitClient: @unchecked Sendable {
     }
 
     @discardableResult
-    static func runGit(_ arguments: [String], cwd: URL? = nil) async throws -> String {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
+    static func runGit(_ arguments: [String], cwd: URL? = nil, stdin: Data? = nil, env: [String: String]? = nil) async throws -> String {
+        let data = try await runGitData(arguments, cwd: cwd, stdin: stdin, env: env)
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    @discardableResult
+    static func runGitData(_ arguments: [String], cwd: URL? = nil, stdin: Data? = nil, env: [String: String]? = nil) async throws -> Data {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Data, Error>) in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
             process.arguments = ["git"] + arguments
             if let cwd { process.currentDirectoryURL = cwd }
 
             // Allow askpass / SSH agent to work but suppress interactive prompts.
-            process.environment = gitEnvironment()
+            var mergedEnvironment = gitEnvironment()
+            if let env {
+                for (key, value) in env { mergedEnvironment[key] = value }
+            }
+            process.environment = mergedEnvironment
 
             let stdout = Pipe()
             let stderr = Pipe()
             process.standardOutput = stdout
             process.standardError = stderr
+
+            let stdinPipe: Pipe? = stdin.map { _ in Pipe() }
+            if let stdinPipe { process.standardInput = stdinPipe }
 
             // Drain both pipes on background threads *while* git runs. Reading
             // only in terminationHandler deadlocks once output exceeds the OS
@@ -141,12 +154,11 @@ final class GitClient: @unchecked Sendable {
 
             process.terminationHandler = { proc in
                 group.wait() // ensure both pipes are fully drained
-                let outStr = String(data: outBox.data, encoding: .utf8) ?? ""
-                let errStr = String(data: errBox.data, encoding: .utf8) ?? ""
 
                 if proc.terminationStatus == 0 {
-                    cont.resume(returning: outStr)
+                    cont.resume(returning: outBox.data)
                 } else {
+                    let errStr = String(data: errBox.data, encoding: .utf8) ?? ""
                     cont.resume(throwing: GitError.commandFailed(
                         status: proc.terminationStatus,
                         stderr: errStr,
@@ -159,6 +171,18 @@ final class GitClient: @unchecked Sendable {
                 try process.run()
             } catch {
                 cont.resume(throwing: error)
+                return
+            }
+
+            if let stdin, let stdinPipe {
+                queue.async {
+                    // If git exits early (e.g. a malformed patch), the read end
+                    // is already closed and this write breaks the pipe. That's
+                    // not our error to report — the process's exit code /
+                    // stderr is, so we just swallow it here with `try?`.
+                    try? stdinPipe.fileHandleForWriting.write(contentsOf: stdin)
+                    stdinPipe.fileHandleForWriting.closeFile()
+                }
             }
         }
     }
@@ -213,6 +237,27 @@ final class GitClient: @unchecked Sendable {
         } catch {
             return nil
         }
+    }
+
+    /// Resolves the current branch's upstream into an explicit (remote, branch)
+    /// pair from the tracking config. Reading `branch.<name>.remote` /
+    /// `.merge` directly is unambiguous (unlike splitting the `remote/branch`
+    /// short form, which is undecidable when a remote name contains a slash),
+    /// and lets `push` target an upstream branch whose name differs from the
+    /// local branch — plain `git push` refuses that under `push.default=simple`.
+    /// Returns nil when there is no upstream (or it points at a local ref).
+    func upstreamTarget() async -> (remote: String, branch: String)? {
+        guard let branch = try? await currentBranch() else { return nil }
+        let remote = (try? await run("config", "--get", "branch.\(branch).remote"))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let mergeRef = (try? await run("config", "--get", "branch.\(branch).merge"))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // A "." remote means a local tracking branch (no real remote to push to).
+        guard let remote, !remote.isEmpty, remote != ".",
+              let mergeRef, !mergeRef.isEmpty else { return nil }
+        let prefix = "refs/heads/"
+        let branchName = mergeRef.hasPrefix(prefix) ? String(mergeRef.dropFirst(prefix.count)) : mergeRef
+        return (remote, branchName)
     }
 
     // MARK: - Status
@@ -292,6 +337,13 @@ final class GitClient: @unchecked Sendable {
         }
     }
 
+    /// Rewrites HEAD in place with whatever is currently staged plus `message`.
+    func amendCommit(message: String) async throws {
+        try await runClassified(operation: .commit) {
+            try await self.run("commit", "--amend", "-m", message)
+        }
+    }
+
     // MARK: - Diff
 
     func diffAgainstHEAD(path: String) async throws -> String {
@@ -308,9 +360,44 @@ final class GitClient: @unchecked Sendable {
         return try await run("diff", base, "--no-color", "--", path)
     }
 
+    /// Worktree vs index — the part of a file's changes that isn't staged yet.
+    func diffUnstaged(path: String) async throws -> String {
+        try await run("diff", "--no-color", "--", path)
+    }
+
+    /// Index vs HEAD — the part of a file's changes that's already staged.
+    func diffStaged(path: String) async throws -> String {
+        try await run("diff", "--cached", "--no-color", "--", path)
+    }
+
+    /// Applies a hunk/line-level patch (built by `PatchBuilder`) to the index
+    /// only. `reverse: false` stages (worktree → index); `reverse: true`
+    /// unstages (index → HEAD, applied backwards).
+    func applyPatch(_ patch: String, reverse: Bool) async throws {
+        try await runClassified(operation: reverse ? .unstage : .stage) {
+            var args = ["apply", "--cached", "--whitespace=nowarn"]
+            if reverse { args.append("--reverse") }
+            _ = try await self.run(args, stdin: Data(patch.utf8))
+        }
+    }
+
     func readFileFromWorkTree(path: String) -> String? {
         let url = repositoryURL.appendingPathComponent(path)
         return try? String(contentsOf: url, encoding: .utf8)
+    }
+
+    /// Raw bytes of `path` as it exists at `rev` (e.g. "HEAD", a SHA, or
+    /// "<sha>^"). Returns `nil` if the path doesn't exist at that revision —
+    /// which is the normal case for a file that was added or deleted there.
+    func showFileData(rev: String, path: String) async -> Data? {
+        try? await Self.runGitData(["show", "\(rev):\(path)"], cwd: repositoryURL)
+    }
+
+    /// Raw bytes of `path` as it currently sits in the working tree. Returns
+    /// `nil` if the file doesn't exist (e.g. it was deleted).
+    func worktreeFileData(path: String) -> Data? {
+        let url = repositoryURL.appendingPathComponent(path)
+        return try? Data(contentsOf: url)
     }
 
     // MARK: - Commit details
@@ -418,28 +505,45 @@ final class GitClient: @unchecked Sendable {
 
     // MARK: - History
 
+    /// Separators for `recentCommits`' `git log --format=...` output, exposed
+    /// so tests can build matching fixture strings for `parseRecentCommits`.
+    static let recentCommitsRecordSeparator = "\u{1E}"
+    static let recentCommitsFieldSeparator = "\u{1F}"
+
     func recentCommits(limit: Int = 200) async throws -> [Commit] {
-        let RS = "\u{1E}"
-        let US = "\u{1F}"
+        let RS = Self.recentCommitsRecordSeparator
+        let US = Self.recentCommitsFieldSeparator
         // %B = raw body (including the subject line and any Co-Authored-By
         // trailers). We pull it so CoAuthorParser can extract co-authors.
+        // %P = space-separated parent SHAs; two or more means a merge commit.
         let output = try await run(
             "log", "-n", String(limit),
-            "--format=%H\(US)%h\(US)%aI\(US)%an\(US)%ae\(US)%s\(US)%B\(RS)"
+            "--format=%H\(US)%h\(US)%aI\(US)%an\(US)%ae\(US)%s\(US)%P\(US)%B\(RS)"
         )
+        return Self.parseRecentCommits(output)
+    }
 
+    /// Parses `recentCommits`' `git log` output into `Commit`s. Extracted as
+    /// a static, pure function so the field-splitting/isMerge logic can be
+    /// unit tested without a real repository.
+    static func parseRecentCommits(_ output: String) -> [Commit] {
+        let RS = recentCommitsRecordSeparator
+        let US = recentCommitsFieldSeparator
         let formatter = ISO8601DateFormatter()
         var commits: [Commit] = []
         for record in output.split(separator: Character(RS), omittingEmptySubsequences: true) {
-            // `maxSplits: 6` keeps newlines inside %B from being treated as
+            // `maxSplits: 7` keeps newlines inside %B from being treated as
             // field boundaries by accident.
             let fields = record
-                .split(separator: Character(US), maxSplits: 6, omittingEmptySubsequences: false)
+                .split(separator: Character(US), maxSplits: 7, omittingEmptySubsequences: false)
                 .map(String.init)
-            guard fields.count >= 7 else { continue }
+            guard fields.count >= 8 else { continue }
             let dateStr = fields[2].trimmingCharacters(in: .whitespacesAndNewlines)
             let date = formatter.date(from: dateStr) ?? .distantPast
-            let rawBody = fields[6]
+            let parentCount = fields[6]
+                .split(separator: " ", omittingEmptySubsequences: true)
+                .count
+            let rawBody = fields[7]
             commits.append(Commit(
                 id: fields[0].trimmingCharacters(in: .whitespacesAndNewlines),
                 shortSHA: fields[1],
@@ -448,7 +552,8 @@ final class GitClient: @unchecked Sendable {
                 author: fields[3],
                 authorEmail: fields[4],
                 date: date,
-                coAuthors: CoAuthorParser.parse(from: rawBody)
+                coAuthors: CoAuthorParser.parse(from: rawBody),
+                isMerge: parentCount >= 2
             ))
         }
         return commits
@@ -466,6 +571,257 @@ final class GitClient: @unchecked Sendable {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         return Set(shas)
+    }
+
+    /// The HEAD commit's subject/body, or nil if there is no commit yet.
+    func headCommitMessage() async -> (summary: String, body: String)? {
+        let sep = "\u{1F}"
+        guard let raw = try? await run("log", "-1", "--format=%s\(sep)%b") else { return nil }
+        return Self.parseHeadMessage(raw, separator: sep)
+    }
+
+    /// Splits `git log --format=%s<sep>%b` output into subject and body.
+    static func parseHeadMessage(_ raw: String, separator sep: String) -> (summary: String, body: String)? {
+        let parts = raw.components(separatedBy: sep)
+        guard let first = parts.first else { return nil }
+        return (
+            first.trimmingCharacters(in: .whitespacesAndNewlines),
+            parts.dropFirst().joined(separator: sep).trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    /// True when HEAD exists and hasn't been pushed to any remote yet.
+    func isHeadUnpushed() async -> Bool {
+        guard let head = try? await run("rev-parse", "HEAD")
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !head.isEmpty else { return false }
+        return await unpushedCommitSHAs().contains(head)
+    }
+
+    // MARK: - Commit history editing (reword / squash / drop / reorder)
+
+    /// Full SHA of HEAD, or `nil` if there is no commit yet.
+    func headSHA() async -> String? {
+        guard let sha = try? await run("rev-parse", "HEAD")
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !sha.isEmpty else { return nil }
+        return sha
+    }
+
+    /// Points `ref` (e.g. the commit-edit backup ref) at `sha`.
+    func updateRef(_ ref: String, to sha: String) async throws {
+        try await run("update-ref", ref, sha)
+    }
+
+    /// Removes `ref`. Always best-effort: a ref that's already gone (or a
+    /// repository that vanished mid-cleanup) isn't something callers need to
+    /// react to, so failures are swallowed rather than thrown.
+    func deleteRef(_ ref: String) async {
+        _ = try? await run("update-ref", "-d", ref)
+    }
+
+    /// True when an interactive rebase is in progress (ours or one started
+    /// from an external terminal), detected via `<gitdir>/rebase-merge` —
+    /// the directory `git rebase -i` uses (as opposed to `rebase-apply`,
+    /// used by the non-interactive/am-based path this app never invokes).
+    func isRebaseInProgress() async -> Bool {
+        guard let gitDir = try? await run("rev-parse", "--absolute-git-dir")
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !gitDir.isEmpty else { return false }
+        return FileManager.default.fileExists(atPath: gitDir + "/rebase-merge")
+    }
+
+    /// Aborts an in-progress rebase, restoring the pre-rebase HEAD.
+    func rebaseAbort() async throws {
+        _ = try? await run("rebase", "--abort")
+    }
+
+    /// Runs `git rebase -i` with the todo list and (optionally) a commit
+    /// message supplied via environment-injected editors instead of an
+    /// actual terminal editor.
+    ///
+    /// `GIT_SEQUENCE_EDITOR="cp '<todoPath>'"` replaces the rebase todo file
+    /// with ours; `GIT_EDITOR="cp '<messagePath>'"` replaces the message
+    /// editor git would otherwise open for a `reword`/`squash` step.
+    /// `-c core.editor` / `-c sequence.editor` do NOT work here — git only
+    /// consults those for the outer rebase invocation, not the internal
+    /// `commit --amend` it runs per `reword`/`squash` step, so a message set
+    /// that way never reaches the rewritten commit and the step silently
+    /// keeps git's own placeholder text instead (confirmed by hand before
+    /// relying on this).
+    ///
+    /// - Parameters:
+    ///   - base: revision to rebase onto, or `nil` to rewrite from the root.
+    ///   - todoPath: file containing the todo list, one line per commit.
+    ///   - messagePath: file containing the commit message, required when
+    ///     the plan includes a `reword` or `squash` step. When `nil`,
+    ///     `GIT_EDITOR=true` is used so no editor launches at all.
+    func rebaseInteractive(base: String?, todoPath: String, messagePath: String?) async throws {
+        var args = ["rebase", "-i"]
+        if let base { args.append(base) } else { args.append("--root") }
+        let sequenceEditor = "cp '\(todoPath)'"
+        let editor = messagePath.map { "cp '\($0)'" } ?? "true"
+        try await run(args, env: [
+            "GIT_SEQUENCE_EDITOR": sequenceEditor,
+            "GIT_EDITOR": editor
+        ])
+    }
+
+    /// Fast path for rewording HEAD's message alone: amends HEAD in place
+    /// using `-F <file>` for the message, skipping the editor entirely via
+    /// `-c core.editor=true`. No rebase needed since only HEAD moves.
+    func amendMessageOnly(messageFile: String) async throws {
+        try await run(["-c", "core.editor=true", "commit", "--amend", "-F", messageFile])
+    }
+
+    /// SHAs of commits reachable from `base` (exclusive) to `HEAD` that are
+    /// merge commits, used to double-check a history-edit range doesn't
+    /// touch one before running the rebase. `base: nil` checks all the way
+    /// back to the root commit.
+    func mergeCommitSHAs(base: String?) async -> [String] {
+        let range = base.map { "\($0)..HEAD" } ?? "HEAD"
+        guard let output = try? await run("rev-list", "--merges", range) else { return [] }
+        return output
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    // MARK: - Stash
+
+    func stashList() async throws -> [StashEntry] {
+        let output = try await run("stash", "list", "--format=\(StashListParser.formatTemplate)")
+        return StashListParser.parse(output)
+    }
+
+    func stashPush(message: String?, includeUntracked: Bool) async throws {
+        try await runClassified(operation: .stash) {
+            var args = ["stash", "push"]
+            if includeUntracked { args.append("-u") }
+            if let message, !message.isEmpty { args.append(contentsOf: ["-m", message]) }
+            try await self.run(args)
+        }
+    }
+
+    /// Applies (without dropping) the stash at `selector`. On a real content
+    /// conflict, `git` writes conflict markers into the working tree, leaves
+    /// the stash in the list, and prints its `CONFLICT` details to *stdout*
+    /// (not stderr) — so callers should not rely solely on the thrown error's
+    /// message to detect a conflict; check working-tree status afterwards.
+    func stashApply(selector: String) async throws {
+        try await runClassified(operation: .stashApply) {
+            try await self.run("stash", "apply", selector)
+        }
+    }
+
+    func stashDrop(selector: String) async throws {
+        try await runClassified(operation: .stashDrop) {
+            try await self.run("stash", "drop", selector)
+        }
+    }
+
+    /// Resolves a `stash@{N}` selector to its current full SHA, so callers can
+    /// confirm a selector still refers to the stash they think it does before
+    /// a destructive follow-up (e.g. drop after pop).
+    func stashSHA(selector: String) async throws -> String {
+        try await run("rev-parse", selector).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // MARK: - Undo (reflog-based)
+
+    func reflogEntries(limit: Int = 2) async throws -> [ReflogEntry] {
+        let output = try await run("reflog", "-n", String(limit), "--format=\(ReflogParser.formatTemplate)")
+        return ReflogParser.parse(output)
+    }
+
+    /// Moves HEAD (and the current branch) to `ref`, keeping the difference
+    /// staged. Used to undo a commit/amend.
+    func resetSoft(to ref: String) async throws {
+        try await runClassified(operation: .other(L("取り消し"))) {
+            try await self.run("reset", "--soft", ref)
+        }
+    }
+
+    /// Moves HEAD (and the current branch) to `ref`, discarding the working
+    /// tree and index difference. Used to undo a merge.
+    func resetHard(to ref: String) async throws {
+        try await runClassified(operation: .other(L("取り消し"))) {
+            try await self.run("reset", "--hard", ref)
+        }
+    }
+
+    /// Checks out `ref` directly (as opposed to `switchBranch`, which uses
+    /// `git switch`). Used to undo a branch switch back to the exact prior
+    /// ref, which may itself be a branch name.
+    func checkoutRef(_ ref: String) async throws {
+        try await runClassified(operation: .switchBranch) {
+            try await self.run("checkout", ref)
+        }
+    }
+
+    /// The files touched by a stash entry, for the "退避内容を表示" preview.
+    /// `git stash show` diffs the stash against its parent commit, so this
+    /// reuses the same `--name-status -z` parsing as `filesInCommit`.
+    func stashShowFiles(selector: String) async throws -> [FileChange] {
+        let output = try await run("stash", "show", "--name-status", "-z", "--no-color", selector)
+        return Self.parseShowNameStatusZ(output)
+    }
+
+    /// True when the installed `git` supports `stash push --staged`
+    /// (added in git 2.35), which `stashPartial` relies on.
+    func supportsStagedStash() async -> Bool {
+        guard let output = try? await run("--version") else { return false }
+        return Self.gitVersionAtLeast(output, major: 2, minor: 35)
+    }
+
+    /// Parses the first `MAJOR.MINOR` version number found in `versionOutput`
+    /// (accepts both raw "2.35.0" and full "git version 2.50.1 (Apple
+    /// Git-155)" output) and compares it against `major`.`minor`. Returns
+    /// `false` for malformed or empty input rather than throwing, since
+    /// callers use this only to decide whether to offer a feature.
+    static func gitVersionAtLeast(_ versionOutput: String, major: Int, minor: Int) -> Bool {
+        guard let regex = try? NSRegularExpression(pattern: #"(\d+)\.(\d+)"#) else { return false }
+        let ns = versionOutput as NSString
+        guard let match = regex.firstMatch(in: versionOutput, range: NSRange(location: 0, length: ns.length)),
+              let foundMajor = Int(ns.substring(with: match.range(at: 1))),
+              let foundMinor = Int(ns.substring(with: match.range(at: 2))) else {
+            return false
+        }
+        if foundMajor != major { return foundMajor > major }
+        return foundMinor >= minor
+    }
+
+    /// Stashes only the changes described by `patch` (a hunk/line-level patch
+    /// built against HEAD by `PatchBuilder`), leaving everything else in the
+    /// working tree untouched. Requires git 2.35+ — check
+    /// `supportsStagedStash()` before offering this.
+    ///
+    /// Implementation ("write-tree/read-tree dance"):
+    /// 1. `write-tree` snapshots the *current* index so it can be restored
+    ///    exactly regardless of what happens below.
+    /// 2. `read-tree HEAD` resets the index to HEAD without touching the
+    ///    working tree, giving a clean slate to stage only the selection.
+    /// 3. `apply --cached` stages just the selected hunks/lines from `patch`.
+    /// 4. `stash push --staged` stashes exactly what's now staged and rolls
+    ///    back only that content from the working tree.
+    /// The index snapshotted in step 1 is restored on every exit path —
+    /// success or failure — so this never leaves the index in the
+    /// intermediate "HEAD + selection" state.
+    func stashPartial(patch: String, message: String?) async throws {
+        try await runClassified(operation: .stashPartial) {
+            let savedTree = try await self.run("write-tree").trimmingCharacters(in: .whitespacesAndNewlines)
+            do {
+                try await self.run("read-tree", "HEAD")
+                _ = try await self.run(["apply", "--cached", "--whitespace=nowarn"], stdin: Data(patch.utf8))
+                var args = ["stash", "push", "--staged"]
+                if let message, !message.isEmpty { args.append(contentsOf: ["-m", message]) }
+                try await self.run(args)
+            } catch {
+                _ = try? await self.run("read-tree", savedTree)
+                throw error
+            }
+            try await self.run("read-tree", savedTree)
+        }
     }
 
     // MARK: - Branches
@@ -533,6 +889,17 @@ final class GitClient: @unchecked Sendable {
         }
     }
 
+    /// Creates `name` from `startPoint` and switches to it in one step, with
+    /// explicit upstream tracking (`git switch -c <name> --track <startPoint>`).
+    /// Used for pull-request checkout so the new branch has the right
+    /// upstream wired up immediately, without a separate
+    /// `branch --set-upstream-to` call.
+    func switchCreatingTrackingBranch(name: String, startPoint: String) async throws {
+        try await runClassified(operation: .switchBranch) {
+            try await self.run("switch", "-c", name, "--track", startPoint)
+        }
+    }
+
     func deleteBranch(name: String, force: Bool = false) async throws {
         try await runClassified(operation: .deleteBranch) {
             try await self.run("branch", force ? "-D" : "-d", name)
@@ -545,6 +912,49 @@ final class GitClient: @unchecked Sendable {
             if noFastForward { args.append("--no-ff") }
             args.append(branch)
             try await self.run(args)
+        }
+    }
+
+    // MARK: - Merge conflict resolution
+
+    /// Whether a merge is currently in progress (i.e. `MERGE_HEAD` exists).
+    func isMergeInProgress() async -> Bool {
+        (try? await run("rev-parse", "-q", "--verify", "MERGE_HEAD")) != nil
+    }
+
+    /// Replace `path` with the version from the current branch ("ours").
+    func checkoutOurs(path: String) async throws {
+        try await runClassified(operation: .merge) {
+            try await self.run("checkout", "--ours", "--", path)
+        }
+    }
+
+    /// Replace `path` with the version from the branch being merged in ("theirs").
+    func checkoutTheirs(path: String) async throws {
+        try await runClassified(operation: .merge) {
+            try await self.run("checkout", "--theirs", "--", path)
+        }
+    }
+
+    /// Mark a conflicted path as resolved by staging it.
+    func markResolved(path: String) async throws {
+        try await runClassified(operation: .merge) {
+            try await self.run("add", "-A", "--", path)
+        }
+    }
+
+    /// Conclude an in-progress merge. `core.editor=true` skips the commit-message
+    /// editor since git already prepared a merge commit message.
+    func continueMerge() async throws {
+        try await runClassified(operation: .merge) {
+            try await self.run("-c", "core.editor=true", "merge", "--continue")
+        }
+    }
+
+    /// Abort an in-progress merge, restoring the pre-merge working tree.
+    func abortMerge() async throws {
+        try await runClassified(operation: .merge) {
+            try await self.run("merge", "--abort")
         }
     }
 
@@ -583,19 +993,46 @@ final class GitClient: @unchecked Sendable {
         }
     }
 
-    /// Fast-forward only pull. Fails if not fast-forwardable; caller can show the error.
-    func pull(remote: String = "origin") async throws {
-        try await runClassified(operation: .pull) {
-            try await self.run("pull", "--ff-only", "--progress", remote)
+    /// Fetches a single refspec (e.g. a branch name, or
+    /// `pull/42/head:pr/42` to materialize a PR's head as a local branch)
+    /// without touching any other refs. Used by pull-request checkout, which
+    /// needs an exact ref rather than a full `--prune --all` sync.
+    func fetch(remote: String = "origin", refspec: String) async throws {
+        try await runClassified(operation: .fetch) {
+            try await self.run("fetch", remote, refspec)
         }
     }
 
-    /// Push current branch to `remote`. If `setUpstream` is true, also `-u`.
-    func push(remote: String = "origin", branch: String? = nil, setUpstream: Bool = false) async throws {
+    /// Fast-forward only pull. Fails if not fast-forwardable; caller can show the error.
+    /// A nil `remote` lets git resolve the tracked remote/branch from the
+    /// current branch's upstream config, so a non-origin upstream still works.
+    func pull(remote: String? = nil) async throws {
+        try await runClassified(operation: .pull) {
+            var args = ["pull", "--ff-only", "--progress"]
+            if let remote { args.append(remote) }
+            try await self.run(args)
+        }
+    }
+
+    /// Pull that merges instead of fast-forwarding, for when the caller has
+    /// already confirmed diverged local/remote histories should be combined.
+    /// A nil `remote` defers to the branch's upstream config (see `pull`).
+    func pullMerge(remote: String? = nil) async throws {
+        try await runClassified(operation: .pull) {
+            var args = ["pull", "--no-rebase", "--progress"]
+            if let remote { args.append(remote) }
+            try await self.run(args)
+        }
+    }
+
+    /// Push the current branch. A nil `remote` lets git push to the branch's
+    /// configured upstream (any remote, not just origin); pass an explicit
+    /// `remote` + `branch` + `setUpstream: true` for the first push.
+    func push(remote: String? = nil, branch: String? = nil, setUpstream: Bool = false) async throws {
         try await runClassified(operation: .push) {
             var args = ["push", "--progress"]
             if setUpstream { args.append("-u") }
-            args.append(remote)
+            if let remote { args.append(remote) }
             if let branch { args.append(branch) }
             try await self.run(args)
         }

@@ -38,6 +38,10 @@ struct GitOperationError: Identifiable, LocalizedError, Equatable {
         case deleteBranch
         case clone
         case initRepo
+        case stash
+        case stashApply
+        case stashDrop
+        case stashPartial
         case other(String)
 
         var label: String {
@@ -54,6 +58,10 @@ struct GitOperationError: Identifiable, LocalizedError, Equatable {
             case .deleteBranch: return L("ブランチ削除")
             case .clone: return L("クローン")
             case .initRepo: return L("リポジトリ初期化")
+            case .stash: return L("退避")
+            case .stashApply: return L("退避の復元")
+            case .stashDrop: return L("退避の削除")
+            case .stashPartial: return L("部分退避")
             case .other(let s): return s
             }
         }
@@ -74,6 +82,10 @@ struct GitOperationError: Identifiable, LocalizedError, Equatable {
             case .deleteBranch: return L("ブランチ削除に失敗しました")
             case .clone: return L("クローンに失敗しました")
             case .initRepo: return L("リポジトリ初期化に失敗しました")
+            case .stash: return L("退避に失敗しました")
+            case .stashApply: return L("退避の復元に失敗しました")
+            case .stashDrop: return L("退避の削除に失敗しました")
+            case .stashPartial: return L("部分退避に失敗しました")
             case .other: return L("操作に失敗しました")
             }
         }
@@ -126,6 +138,8 @@ struct GitOperationError: Identifiable, LocalizedError, Equatable {
         case hostKeyVerification
         /// A merge is already in progress; new merge attempt blocked.
         case mergeInProgress
+        /// Applying a stash produced text-conflict markers; the stash is kept.
+        case stashApplyConflict
         /// `pull --ff-only` could not fast-forward (diverged history).
         case divergedHistory
         /// Repo or path is not accessible (permissions / missing dir).

@@ -146,10 +146,28 @@ struct ChangesSidebar: View {
                             Task { await viewModel.select(change) }
                         }
                         .contextMenu {
-                            Button(role: .destructive) {
-                                pendingDiscard = change
-                            } label: {
-                                Label(L("変更を破棄…"), systemImage: "arrow.uturn.backward")
+                            if change.isConflicted {
+                                Button {
+                                    Task { await viewModel.resolveUsingOurs(change) }
+                                } label: {
+                                    Label(L("自分の変更を採用"), systemImage: "arrow.left.circle")
+                                }
+                                Button {
+                                    Task { await viewModel.resolveUsingTheirs(change) }
+                                } label: {
+                                    Label(L("相手の変更を採用"), systemImage: "arrow.right.circle")
+                                }
+                                Button {
+                                    Task { await viewModel.markResolved(change) }
+                                } label: {
+                                    Label(L("解決済みにする"), systemImage: "checkmark.circle")
+                                }
+                            } else {
+                                Button(role: .destructive) {
+                                    pendingDiscard = change
+                                } label: {
+                                    Label(L("変更を破棄…"), systemImage: "arrow.uturn.backward")
+                                }
                             }
                         }
                     }

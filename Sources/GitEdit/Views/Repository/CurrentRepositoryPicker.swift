@@ -60,6 +60,7 @@ private enum RepositoryPickerAction {
 
 private struct RepositoryPickerPopover: View {
     @EnvironmentObject var store: RepositoryStore
+    @Environment(\.openWindow) private var openWindow
     let onAction: (RepositoryPickerAction) -> Void
 
     var body: some View {
@@ -113,6 +114,11 @@ private struct RepositoryPickerPopover: View {
                             isCurrent: store.selectedID == repo.id
                         )
                         .onTapGesture { onAction(.select(repo.id)) }
+                        .contextMenu {
+                            Button(L("新しいウィンドウで開く")) {
+                                openWindow(id: "repository", value: repo.id)
+                            }
+                        }
                     }
                 }
                 .padding(DT.Space.xs)

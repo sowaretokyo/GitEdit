@@ -21,6 +21,16 @@ final class ChangesViewModel: ObservableObject {
     // MARK: - Diff view
     @Published var diffText: String = ""
     @Published var isLoadingDiff: Bool = false
+    /// Worktree-vs-index and index-vs-HEAD diffs for the selected file, used
+    /// by `HunkStagingDiffView` for hunk/line-level staging. `nil` for
+    /// untracked files, where partial staging isn't offered.
+    @Published var unstagedDiff: FileDiff?
+    @Published var stagedDiff: FileDiff?
+    /// Set instead of `diffText` when the selected file is an image, so the
+    /// UI can show a before/after image comparison rather than a binary
+    /// text patch. `nil` for non-image files (and for images with no
+    /// decodable content on either side).
+    @Published var imageDiff: ImageDiffContent?
 
     // MARK: - Editor view
     @Published var editorViewMode: DiffEditorMode = .diff
@@ -39,6 +49,23 @@ final class ChangesViewModel: ObservableObject {
     @Published var commitVersion: Int = 0
     @Published var currentBranch: String?
     @Published var isCommitting: Bool = false
+
+    // MARK: - Amend
+    enum AmendAvailability {
+        /// No HEAD commit yet — the amend toggle is hidden.
+        case noCommit
+        /// HEAD exists and hasn't been pushed — amend is offered.
+        case available
+        /// HEAD exists but has already been pushed — amend is disabled.
+        case pushed
+    }
+    @Published var isAmending: Bool = false
+    @Published var amendAvailability: AmendAvailability = .noCommit
+    private var headCommitMessageCache: (summary: String, body: String)?
+    /// The draft message/description stashed away while amending, restored
+    /// when the amend toggle is switched back off.
+    private var draftSummary: String = ""
+    private var draftDescription: String = ""
     /// Structured error from the most recent operation. The host view observes
     /// this and forwards it to the shared repository-level error banner so
     /// commit / stage / save errors surface in the same UI as push / pull.
@@ -59,9 +86,14 @@ final class ChangesViewModel: ObservableObject {
     var stagedCount: Int { changes.filter { $0.willBeCommitted }.count }
 
     var allStaged: Bool {
-        let stageable = changes.filter { !$0.isIgnored }
+        // Conflicted files aren't "stageable" via the all-files checkbox — they
+        // need explicit resolution — so exclude them from the completeness check.
+        let stageable = changes.filter { !$0.isIgnored && !$0.isConflicted }
         return !stageable.isEmpty && stageable.allSatisfy { $0.willBeCommitted }
     }
+
+    var conflictedFiles: [FileChange] { changes.filter { $0.isConflicted } }
+    var hasConflicts: Bool { changes.contains { $0.isConflicted } }
 
     // MARK: - Loading
 
@@ -69,7 +101,8 @@ final class ChangesViewModel: ObservableObject {
         async let st: Void = refreshStatus()
         async let hi: Void = loadHistory()
         async let br: Void = refreshBranch()
-        _ = await (st, hi, br)
+        async let am: Void = refreshAmendState()
+        _ = await (st, hi, br, am)
     }
 
     func refreshStatus() async {
@@ -101,6 +134,44 @@ final class ChangesViewModel: ObservableObject {
         currentBranch = try? await git.currentBranch()
     }
 
+    /// Re-derives whether the amend toggle should be shown/enabled, and caches
+    /// HEAD's message for the prefill. Falls back out of an active amend if
+    /// HEAD stops being eligible (e.g. it just got pushed from elsewhere).
+    func refreshAmendState() async {
+        guard let head = await git.headCommitMessage() else {
+            headCommitMessageCache = nil
+            amendAvailability = .noCommit
+            if isAmending { setAmending(false) }
+            return
+        }
+        headCommitMessageCache = head
+        let unpushed = await git.isHeadUnpushed()
+        amendAvailability = unpushed ? .available : .pushed
+        if isAmending && !unpushed {
+            setAmending(false)
+        }
+    }
+
+    /// Toggles amend mode, prefilling/restoring the commit message so the
+    /// user's in-progress draft isn't lost when they flip it back off.
+    func setAmending(_ on: Bool) {
+        guard on != isAmending else { return }
+        if on {
+            guard amendAvailability == .available, let head = headCommitMessageCache else { return }
+            draftSummary = commitMessage
+            draftDescription = commitDescription
+            commitMessage = head.summary
+            commitDescription = head.body
+            isAmending = true
+        } else {
+            isAmending = false
+            commitMessage = draftSummary
+            commitDescription = draftDescription
+            draftSummary = ""
+            draftDescription = ""
+        }
+    }
+
     // MARK: - Selection
 
     func select(_ change: FileChange) async {
@@ -118,10 +189,23 @@ final class ChangesViewModel: ObservableObject {
     func refreshDiffForSelection() async {
         guard let change = selectedChange else {
             diffText = ""
+            unstagedDiff = nil
+            stagedDiff = nil
+            imageDiff = nil
             return
         }
         isLoadingDiff = true
         defer { isLoadingDiff = false }
+
+        if ImageDiff.isImagePath(change.path), let content = await loadImageDiff(for: change) {
+            imageDiff = content
+            diffText = ""
+            unstagedDiff = nil
+            stagedDiff = nil
+            return
+        }
+        imageDiff = nil
+
         do {
             if change.isUntracked {
                 if let content = git.readFileFromWorkTree(path: change.path) {
@@ -134,12 +218,40 @@ final class ChangesViewModel: ObservableObject {
                 } else {
                     diffText = ""
                 }
+                unstagedDiff = nil
+                stagedDiff = nil
             } else {
                 diffText = try await git.diffAgainstHEAD(path: change.path)
+                // Renamed files keep using the whole-file diff above — hunk
+                // staging doesn't support rename-aware patches.
+                if change.renameFrom == nil {
+                    async let unstagedText = git.diffUnstaged(path: change.path)
+                    async let stagedText = git.diffStaged(path: change.path)
+                    let (u, s) = try await (unstagedText, stagedText)
+                    unstagedDiff = PatchBuilder.parse(u)
+                    stagedDiff = PatchBuilder.parse(s)
+                } else {
+                    unstagedDiff = nil
+                    stagedDiff = nil
+                }
             }
         } catch {
             diffText = L("差分の取得に失敗: %@", error.localizedDescription)
+            unstagedDiff = nil
+            stagedDiff = nil
         }
+    }
+
+    /// Reads before/after bytes for an image file's diff: `before` is HEAD's
+    /// version (nil for untracked files, which have nothing at HEAD yet) and
+    /// `after` is the current worktree content (nil once the file is
+    /// deleted). Returns nil if neither side has content to show.
+    private func loadImageDiff(for change: FileChange) async -> ImageDiffContent? {
+        let deleted = change.indexStatus == "D" || change.workingStatus == "D"
+        let before = change.isUntracked ? nil : await git.showFileData(rev: "HEAD", path: change.path)
+        let after = deleted ? nil : git.worktreeFileData(path: change.path)
+        let content = ImageDiffContent(before: before, after: after)
+        return content.hasAny ? content : nil
     }
 
     // MARK: - Editor
@@ -204,8 +316,10 @@ final class ChangesViewModel: ObservableObject {
         do {
             try git.writeFile(path: change.path, content: editorFileContent)
             // If this file is already staged, re-stage it so the commit captures
-            // the just-saved content instead of the stale index snapshot.
-            if change.willBeCommitted {
+            // the just-saved content instead of the stale index snapshot. Skip
+            // conflicted files — staging them here would silently "resolve" a
+            // conflict the user hasn't actually addressed.
+            if change.willBeCommitted && !change.isConflicted {
                 try await git.stage(path: change.path)
             }
             hasEditorUnsavedChanges = false
@@ -271,7 +385,7 @@ final class ChangesViewModel: ObservableObject {
         let target = !change.willBeCommitted
         let slice = visible[min(a, b)...max(a, b)]
         do {
-            for file in slice where !file.isIgnored && file.willBeCommitted != target {
+            for file in slice where !file.isIgnored && !file.isConflicted && file.willBeCommitted != target {
                 if target {
                     try await git.stage(path: file.path)
                 } else {
@@ -283,6 +397,37 @@ final class ChangesViewModel: ObservableObject {
             report(error, operation: target ? .stage : .unstage)
         }
         lastToggledPath = change.path
+    }
+
+    // MARK: - Hunk / line staging
+
+    /// Stage a single hunk from the "unstaged changes" section.
+    func stageHunk(_ hunk: DiffHunk, in fileDiff: FileDiff, path: String) async {
+        await applyHunkPatch(PatchBuilder.patch(for: hunk, in: fileDiff), reverse: false)
+    }
+
+    /// Unstage a single hunk from the "staged changes" section.
+    func unstageHunk(_ hunk: DiffHunk, in fileDiff: FileDiff, path: String) async {
+        await applyHunkPatch(PatchBuilder.patch(for: hunk, in: fileDiff), reverse: true)
+    }
+
+    /// Stage only the checked `+`/`-` lines, possibly spanning several hunks.
+    func stageSelectedLines(_ selections: [(hunk: DiffHunk, selectedLineIndices: Set<Int>)], in fileDiff: FileDiff, path: String) async {
+        await applyHunkPatch(PatchBuilder.patch(selections: selections, in: fileDiff), reverse: false)
+    }
+
+    /// Unstage only the checked `+`/`-` lines, possibly spanning several hunks.
+    func unstageSelectedLines(_ selections: [(hunk: DiffHunk, selectedLineIndices: Set<Int>)], in fileDiff: FileDiff, path: String) async {
+        await applyHunkPatch(PatchBuilder.patch(selections: selections, in: fileDiff), reverse: true)
+    }
+
+    private func applyHunkPatch(_ patch: String, reverse: Bool) async {
+        do {
+            try await git.applyPatch(patch, reverse: reverse)
+            await refreshStatus()
+        } catch {
+            report(error, operation: reverse ? .unstage : .stage)
+        }
     }
 
     // MARK: - Discard
@@ -311,7 +456,17 @@ final class ChangesViewModel: ObservableObject {
     func toggleAll() async {
         let target = !allStaged
         do {
-            if target {
+            if hasConflicts {
+                // `git add -A` / `restore --staged .` would touch conflicted
+                // files too; stage/unstage everything else individually instead.
+                for file in changes where !file.isIgnored && !file.isConflicted && file.willBeCommitted != target {
+                    if target {
+                        try await git.stage(path: file.path)
+                    } else {
+                        try await git.unstage(path: file.path)
+                    }
+                }
+            } else if target {
                 try await git.stageAll()
             } else {
                 try await git.unstageAll()
@@ -322,18 +477,53 @@ final class ChangesViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Merge conflict resolution
+
+    func resolveUsingOurs(_ change: FileChange) async {
+        do {
+            try await git.checkoutOurs(path: change.path)
+            try await git.markResolved(path: change.path)
+            await refreshStatus()
+        } catch {
+            report(error, operation: .merge)
+        }
+    }
+
+    func resolveUsingTheirs(_ change: FileChange) async {
+        do {
+            try await git.checkoutTheirs(path: change.path)
+            try await git.markResolved(path: change.path)
+            await refreshStatus()
+        } catch {
+            report(error, operation: .merge)
+        }
+    }
+
+    func markResolved(_ change: FileChange) async {
+        do {
+            try await git.markResolved(path: change.path)
+            await refreshStatus()
+        } catch {
+            report(error, operation: .merge)
+        }
+    }
+
     // MARK: - Commit
 
     func commit() async {
         let summary = commitMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         let body = commitDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !summary.isEmpty else { return }
-        guard stagedCount > 0 else {
-            lastError = GitErrorClassifier.classify(
-                stderr: "nothing to commit",
-                operation: .commit
-            )
-            return
+        // Amending allows a message-only reword with nothing staged; a
+        // regular commit still requires at least one staged file.
+        if !isAmending {
+            guard stagedCount > 0 else {
+                lastError = GitErrorClassifier.classify(
+                    stderr: "nothing to commit",
+                    operation: .commit
+                )
+                return
+            }
         }
         // Combine summary + description into a single git commit message.
         let fullMessage = body.isEmpty ? summary : "\(summary)\n\n\(body)"
@@ -345,12 +535,20 @@ final class ChangesViewModel: ObservableObject {
         isCommitting = true
         defer { isCommitting = false }
         do {
-            try await git.commit(message: fullMessage)
+            if isAmending {
+                try await git.amendCommit(message: fullMessage)
+            } else {
+                try await git.commit(message: fullMessage)
+            }
             commitMessage = ""
             commitDescription = ""
+            isAmending = false
+            draftSummary = ""
+            draftDescription = ""
             await refreshAll()
             commitVersion &+= 1
         } catch {
+            // Keep isAmending on failure so the user can fix the message and retry.
             report(error, operation: .commit)
         }
     }

@@ -44,7 +44,7 @@ struct GitEditApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             ContentView()
                 .environmentObject(store)
                 .frame(minWidth: 800, minHeight: 540)
@@ -65,11 +65,27 @@ struct GitEditApp: App {
                     store.promptAddRepository()
                 }
                 .keyboardShortcut("o", modifiers: .command)
+                OpenInNewWindowButton(selectedID: store.selectedID)
             }
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: updaterController.updater)
             }
         }
+
+        // Standalone, sidebar-less window for a single repository — opened via
+        // "Open in New Window" from the sidebar or the ⌘N File-menu command.
+        // The store is shared with the main window; each window's
+        // `RepositoryView` still creates its own view models / FSEvents
+        // watcher, so multiple windows on the same or different repositories
+        // don't interfere with each other.
+        WindowGroup(id: "repository", for: Repository.ID.self) { $repositoryID in
+            RepositoryWindowContent(repositoryID: repositoryID)
+                .environmentObject(store)
+                .frame(minWidth: 700, minHeight: 480)
+                .preferredColorScheme(currentAppearance.colorScheme)
+                .id(appLanguage)
+        }
+        .windowToolbarStyle(.unified(showsTitle: true))
 
         Settings {
             SettingsView()

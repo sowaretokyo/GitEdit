@@ -366,63 +366,37 @@ struct RepositoryView: View {
     }
 
     private var explorerPrompt: some View {
-        VStack(spacing: DT.Space.sm) {
-            Spacer()
-            Image(systemName: "folder")
-                .font(.system(size: 36, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(L("左でファイルをクリックすると内容が表示されます"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        EmptyStateView(
+            icon: "folder",
+            title: L("左でファイルをクリックすると内容が表示されます"),
+            iconSize: 36,
+            background: Color(nsColor: .windowBackgroundColor)
+        )
     }
 
     private var searchPrompt: some View {
-        VStack(spacing: DT.Space.sm) {
-            Spacer()
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 36, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(L("左で検索結果をクリックすると詳細が表示されます"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        EmptyStateView(
+            icon: "doc.text.magnifyingglass",
+            title: L("左で検索結果をクリックすると詳細が表示されます"),
+            iconSize: 36,
+            background: Color(nsColor: .windowBackgroundColor)
+        )
     }
 
     private var pickCommitPrompt: some View {
-        VStack(spacing: DT.Space.sm) {
-            Spacer()
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(L("左のリストからコミットを選択"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        EmptyStateView(
+            icon: "clock.arrow.circlepath",
+            title: L("左のリストからコミットを選択"),
+            background: Color(nsColor: .windowBackgroundColor)
+        )
     }
 
     private var pickPRPrompt: some View {
-        VStack(spacing: DT.Space.sm) {
-            Spacer()
-            Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(L("左のリストからプルリクエストを選択"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        EmptyStateView(
+            icon: "arrow.triangle.branch",
+            title: L("左のリストからプルリクエストを選択"),
+            background: Color(nsColor: .windowBackgroundColor)
+        )
     }
 }
 
@@ -795,12 +769,10 @@ struct StashToolbarButton: View {
         .help(L("退避した変更"))
         .overlay(alignment: .topTrailing) {
             if !repoVM.stashes.isEmpty {
-                Text("\(repoVM.stashes.count)")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(Color(nsColor: .systemGray), in: Capsule())
+                CountBadge(
+                    count: repoVM.stashes.count,
+                    style: .toolbar(Color(nsColor: .systemGray))
+                )
                     .offset(x: 6, y: -4)
             }
         }
@@ -872,12 +844,10 @@ struct NetworkOpsToolbarItems: View {
             .disabled(repoVM.isBusy || !repoVM.hasUpstream || repoVM.behind == 0)
             .overlay(alignment: .topTrailing) {
                 if repoVM.behind > 0 {
-                    Text("\(repoVM.behind)")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Color(nsColor: .systemBlue), in: Capsule())
+                    CountBadge(
+                        count: repoVM.behind,
+                        style: .toolbar(Color(nsColor: .systemBlue))
+                    )
                         .offset(x: 6, y: -4)
                 }
             }
@@ -897,12 +867,10 @@ struct NetworkOpsToolbarItems: View {
             .disabled(repoVM.isBusy || !repoVM.hasRemotes || (repoVM.hasUpstream && repoVM.ahead == 0))
             .overlay(alignment: .topTrailing) {
                 if repoVM.ahead > 0 {
-                    Text("\(repoVM.ahead)")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(Color(nsColor: .systemGreen), in: Capsule())
+                    CountBadge(
+                        count: repoVM.ahead,
+                        style: .toolbar(Color(nsColor: .systemGreen))
+                    )
                         .offset(x: 6, y: -4)
                 }
             }

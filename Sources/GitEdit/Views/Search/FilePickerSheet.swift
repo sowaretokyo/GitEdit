@@ -36,25 +36,18 @@ struct FilePickerSheet: View {
     }
 
     private var queryField: some View {
-        HStack(spacing: DT.Space.sm) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-                .imageScale(.large)
-            TextField(
-                L("ファイルパスで絞り込み"),
-                text: $viewModel.query
-            )
-            .textFieldStyle(.plain)
-            .font(.title3)
-            .focused($queryFocused)
-            .onSubmit { confirmSelection() }
-
-            if viewModel.isLoading {
-                ProgressView().controlSize(.small)
-            }
-        }
-        .padding(.horizontal, DT.Space.lg)
-        .padding(.vertical, DT.Space.md)
+        FilterField(
+            text: $viewModel.query,
+            prompt: L("ファイルパスで絞り込み"),
+            font: .title3,
+            imageScale: .large,
+            horizontalPadding: DT.Space.lg,
+            verticalPadding: DT.Space.md,
+            showsClearButton: false,
+            isLoading: viewModel.isLoading,
+            focus: $queryFocused,
+            onSubmit: { confirmSelection() }
+        )
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
     }
 
@@ -96,18 +89,14 @@ struct FilePickerSheet: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: DT.Space.sm) {
-            Spacer()
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 36, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(viewModel.query.isEmpty
-                 ? L("ファイル名を入力")
-                 : L("ファイルが見つかりません"))
-                .foregroundStyle(.secondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(
+            icon: "magnifyingglass",
+            title: viewModel.query.isEmpty
+                ? L("ファイル名を入力")
+                : L("ファイルが見つかりません"),
+            iconSize: 36,
+            background: .clear
+        )
     }
 
     private func confirmSelection() {

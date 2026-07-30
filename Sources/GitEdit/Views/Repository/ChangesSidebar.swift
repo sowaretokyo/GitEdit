@@ -18,18 +18,21 @@ struct ChangesSidebar: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            filterBar
-            Divider()
-            fileListHeader
-            Divider()
-            fileList
-            Divider()
-            CommitMessageEditor(viewModel: viewModel)
-                .padding(DT.Space.md)
-                .background(Color(nsColor: .windowBackgroundColor))
+        SidebarContainer {
+            VStack(spacing: 0) {
+                filterBar
+                Divider()
+                fileListHeader
+            }
+        } content: {
+            VStack(spacing: 0) {
+                fileList
+                Divider()
+                CommitMessageEditor(viewModel: viewModel)
+                    .padding(DT.Space.md)
+                    .background(Color(nsColor: .windowBackgroundColor))
+            }
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
         .confirmationDialog(
             discardTitle,
             isPresented: discardDialogPresented,
@@ -69,24 +72,13 @@ struct ChangesSidebar: View {
     }
 
     private var filterBar: some View {
-        HStack(spacing: DT.Space.sm) {
-            Image(systemName: "line.3.horizontal.decrease")
-                .imageScale(.small)
-                .foregroundStyle(.secondary)
-            TextField(L("フィルター"), text: $filter)
-                .textFieldStyle(.plain)
-            if !filter.isEmpty {
-                Button {
-                    filter = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, DT.Space.md)
-        .padding(.vertical, DT.Space.sm)
+        FilterField(
+            text: $filter,
+            prompt: L("フィルター"),
+            systemImage: "line.3.horizontal.decrease",
+            font: .body,
+            imageScale: .small
+        )
     }
 
     private var fileListHeader: some View {
@@ -105,12 +97,10 @@ struct ChangesSidebar: View {
             Spacer()
 
             if !viewModel.changes.isEmpty {
-                Text(L("%d / %d", viewModel.stagedCount, viewModel.changes.count))
-                    .font(.caption.weight(.medium))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.18), in: Capsule())
-                    .foregroundStyle(.tint)
+                CountBadge(
+                    count: viewModel.stagedCount,
+                    total: viewModel.changes.count
+                )
             }
         }
         .padding(.horizontal, DT.Space.md)
@@ -128,7 +118,7 @@ struct ChangesSidebar: View {
                         FileChangeRow(
                             change: change,
                             isSelected: viewModel.selectedPath == change.path,
-                            onToggle: {
+                            mode: .workingTree(onToggle: {
                                 // Read the modifier state synchronously at click time;
                                 // shift extends the range from the last-toggled anchor.
                                 let extend = NSEvent.modifierFlags.contains(.shift)
@@ -140,7 +130,7 @@ struct ChangesSidebar: View {
                                         in: visible
                                     )
                                 }
-                            }
+                            })
                         )
                         .onTapGesture {
                             Task { await viewModel.select(change) }

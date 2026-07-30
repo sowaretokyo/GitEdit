@@ -46,9 +46,7 @@ struct DiffView: View {
                 subtitle: L("差分がここに表示されます")
             )
         } else if isLoading {
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(nsColor: .textBackgroundColor))
+            LoadingStateView(background: Color(nsColor: .textBackgroundColor))
         } else if diffText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             EmptyStateView(icon: "equal.circle", title: L("差分なし"))
         } else {
@@ -100,6 +98,37 @@ enum DiffLine: Hashable {
     case added(content: String, newLine: Int)
     case removed(content: String, oldLine: Int)
     case context(content: String, oldLine: Int, newLine: Int)
+}
+
+struct NumberedPatchLine: Hashable {
+    let patchLine: PatchLine
+    let diffLine: DiffLine
+}
+
+extension DiffHunk {
+    /// Converts structured patch lines into the numbered rows consumed by
+    /// `DiffLineRow`, keeping staging and partial-stash numbering identical.
+    func numberedLines() -> [NumberedPatchLine] {
+        var oldLine = oldStart - 1
+        var newLine = newStart - 1
+
+        return lines.map { line in
+            let diffLine: DiffLine
+            switch line.kind {
+            case .context:
+                oldLine += 1
+                newLine += 1
+                diffLine = .context(content: line.content, oldLine: oldLine, newLine: newLine)
+            case .removed:
+                oldLine += 1
+                diffLine = .removed(content: line.content, oldLine: oldLine)
+            case .added:
+                newLine += 1
+                diffLine = .added(content: line.content, newLine: newLine)
+            }
+            return NumberedPatchLine(patchLine: line, diffLine: diffLine)
+        }
+    }
 }
 
 enum DiffParser {

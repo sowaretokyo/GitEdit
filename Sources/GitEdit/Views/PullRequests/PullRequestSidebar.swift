@@ -16,12 +16,11 @@ struct PullRequestSidebar: View {
     }()
 
     var body: some View {
-        VStack(spacing: 0) {
+        SidebarContainer {
             header
-            Divider()
+        } content: {
             content
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
         .sheet(isPresented: $isShowingSignIn) {
             DeviceFlowSheet(isPresented: $isShowingSignIn, store: accountStore)
         }
@@ -41,12 +40,7 @@ struct PullRequestSidebar: View {
             Text(L("プルリクエスト"))
                 .font(.callout.weight(.medium))
             if !viewModel.pullRequests.isEmpty {
-                Text("\(viewModel.pullRequests.count)")
-                    .font(.caption.weight(.medium))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.18), in: Capsule())
-                    .foregroundStyle(.tint)
+                CountBadge(count: viewModel.pullRequests.count)
             }
             Spacer()
             Button {
@@ -116,42 +110,23 @@ struct PullRequestSidebar: View {
     }
 
     private var notGitHubPrompt: some View {
-        VStack(spacing: DT.Space.sm) {
-            Spacer()
-            Image(systemName: "questionmark.circle")
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(L("このリポジトリは GitHub ではありません"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, DT.Space.lg)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(
+            icon: "questionmark.circle",
+            title: L("このリポジトリは GitHub ではありません"),
+            background: .clear
+        )
     }
 
     private var loadingState: some View {
-        VStack {
-            Spacer()
-            ProgressView()
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        LoadingStateView()
     }
 
     private var emptyState: some View {
-        VStack(spacing: DT.Space.sm) {
-            Spacer()
-            Image(systemName: "tray")
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(L("オープンなプルリクエストはありません"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(
+            icon: "tray",
+            title: L("オープンなプルリクエストはありません"),
+            background: .clear
+        )
     }
 
     private func errorState(message: String) -> some View {

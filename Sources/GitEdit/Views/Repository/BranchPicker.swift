@@ -67,36 +67,27 @@ struct BranchPopover: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: DT.Space.sm) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField(L("ブランチを検索"), text: $search)
-                .textFieldStyle(.plain)
-        }
-        .padding(DT.Space.md)
+        FilterField(
+            text: $search,
+            prompt: L("ブランチを検索"),
+            font: .body,
+            horizontalPadding: DT.Space.md,
+            verticalPadding: DT.Space.md,
+            showsClearButton: false
+        )
     }
 
     @ViewBuilder
     private var content: some View {
         if repoVM.isLoadingBranches && repoVM.localBranches.isEmpty {
-            VStack {
-                Spacer()
-                ProgressView()
-                Spacer()
-            }
-            .frame(maxWidth: .infinity)
+            LoadingStateView()
         } else if filteredLocal.isEmpty && filteredRemote.isEmpty {
-            VStack(spacing: DT.Space.sm) {
-                Spacer()
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 24, weight: .light))
-                    .foregroundStyle(.tertiary)
-                Text(L("見つかりません"))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            EmptyStateView(
+                icon: "magnifyingglass",
+                title: L("見つかりません"),
+                iconSize: 24,
+                background: .clear
+            )
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: DT.Space.xs) {
@@ -168,12 +159,7 @@ private struct SectionHeader: View {
             Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-            Text("\(count)")
-                .font(.caption2.weight(.medium))
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(.secondary.opacity(0.15), in: Capsule())
-                .foregroundStyle(.secondary)
+            CountBadge(count: count, style: .compactSecondary)
             Spacer()
         }
         .padding(.horizontal, DT.Space.sm)

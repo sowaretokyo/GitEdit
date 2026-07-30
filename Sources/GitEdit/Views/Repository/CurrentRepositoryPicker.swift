@@ -80,12 +80,7 @@ private struct RepositoryPickerPopover: View {
                 .foregroundStyle(.secondary)
             Spacer()
             if !store.repositories.isEmpty {
-                Text("\(store.repositories.count)")
-                    .font(.caption2.weight(.medium))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
-                    .background(.secondary.opacity(0.15), in: Capsule())
-                    .foregroundStyle(.secondary)
+                CountBadge(count: store.repositories.count, style: .secondary)
             }
         }
         .padding(DT.Space.md)
@@ -94,17 +89,12 @@ private struct RepositoryPickerPopover: View {
     @ViewBuilder
     private var content: some View {
         if store.repositories.isEmpty {
-            VStack(spacing: DT.Space.sm) {
-                Spacer()
-                Image(systemName: "tray")
-                    .font(.system(size: 24, weight: .light))
-                    .foregroundStyle(.tertiary)
-                Text(L("リポジトリがありません"))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            EmptyStateView(
+                icon: "tray",
+                title: L("リポジトリがありません"),
+                iconSize: 24,
+                background: .clear
+            )
         } else {
             ScrollView {
                 LazyVStack(spacing: 1) {

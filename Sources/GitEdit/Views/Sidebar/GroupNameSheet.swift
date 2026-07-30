@@ -40,17 +40,13 @@ struct GroupNameSheet: View {
 
             HStack {
                 Spacer()
-                Button(L("キャンセル")) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Button {
-                    submit()
-                } label: {
-                    Text(confirmTitle)
-                        .frame(minWidth: 80)
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(!canSubmit)
+                SheetActionButtons(
+                    actionTitle: confirmTitle,
+                    isActionEnabled: canSubmit,
+                    isWorking: false,
+                    onCancel: { dismiss() },
+                    onAction: submit
+                )
             }
         }
         .padding(DT.Space.xl)

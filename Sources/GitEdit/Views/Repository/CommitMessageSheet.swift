@@ -55,14 +55,7 @@ struct CommitMessageSheet: View {
             HistoryAwareTextEditor(text: $message, history: [], placeholder: "")
                 .disabled(viewModel.isEditingHistory)
                 .padding(DT.Space.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
-                        .fill(Color(nsColor: .textBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
-                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                )
+                .editorSurface()
         }
         .padding(DT.Space.lg)
         .frame(maxHeight: .infinity)
@@ -74,22 +67,21 @@ struct CommitMessageSheet: View {
                 ProgressView().controlSize(.small)
             }
             Spacer()
-            Button(L("キャンセル")) {
-                viewModel.cancelMessageEdit()
-                dismiss()
-            }
-            .keyboardShortcut(.cancelAction)
-            .disabled(viewModel.isEditingHistory)
-
-            Button(L("保存")) {
-                Task {
-                    await viewModel.confirmMessageEdit(message)
+            SheetActionButtons(
+                actionTitle: L("保存"),
+                isActionEnabled: canSubmit,
+                isWorking: viewModel.isEditingHistory,
+                onCancel: {
+                    viewModel.cancelMessageEdit()
                     dismiss()
+                },
+                onAction: {
+                    Task {
+                        await viewModel.confirmMessageEdit(message)
+                        dismiss()
+                    }
                 }
-            }
-            .buttonStyle(.borderedProminent)
-            .keyboardShortcut(.defaultAction)
-            .disabled(!canSubmit)
+            )
         }
         .padding(DT.Space.md)
     }

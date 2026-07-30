@@ -122,14 +122,7 @@ struct CreatePullRequestSheet: View {
             HistoryAwareTextEditor(text: $viewModel.body, history: [], placeholder: "")
                 .frame(minHeight: 100, maxHeight: 160)
                 .padding(DT.Space.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
-                        .fill(Color(nsColor: .textBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
-                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                )
+                .editorSurface()
         }
     }
 
@@ -158,18 +151,14 @@ struct CreatePullRequestSheet: View {
                 ProgressView().controlSize(.small)
             }
             Spacer()
-            Button(L("キャンセル")) { dismiss() }
-                .keyboardShortcut(.cancelAction)
-                .disabled(viewModel.isCreating)
-            Button {
-                Task { await submit() }
-            } label: {
-                Text(L("プルリクエストを作成"))
-                    .frame(minWidth: 100)
-            }
-            .buttonStyle(.borderedProminent)
-            .keyboardShortcut(.defaultAction)
-            .disabled(viewModel.isCreating)
+            SheetActionButtons(
+                actionTitle: L("プルリクエストを作成"),
+                isActionEnabled: !viewModel.isCreating,
+                isWorking: viewModel.isCreating,
+                actionMinWidth: 100,
+                onCancel: { dismiss() },
+                onAction: { Task { await submit() } }
+            )
         }
     }
 

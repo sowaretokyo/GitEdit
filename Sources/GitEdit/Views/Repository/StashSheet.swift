@@ -150,17 +150,11 @@ struct StashSheet: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: DT.Space.sm) {
-            Spacer()
-            Image(systemName: "archivebox")
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(L("退避された変更はありません"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(
+            icon: "archivebox",
+            title: L("退避された変更はありません"),
+            background: .clear
+        )
     }
 
     // MARK: - Footer

@@ -76,18 +76,13 @@ struct CreateBranchSheet: View {
                     ProgressView().controlSize(.small)
                 }
                 Spacer()
-                Button(L("キャンセル")) { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                    .disabled(isCreating)
-                Button {
-                    Task { await perform() }
-                } label: {
-                    Text(L("作成"))
-                        .frame(minWidth: 80)
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(!canCreate)
+                SheetActionButtons(
+                    actionTitle: L("作成"),
+                    isActionEnabled: canCreate,
+                    isWorking: isCreating,
+                    onCancel: { dismiss() },
+                    onAction: { Task { await perform() } }
+                )
             }
         }
         .padding(DT.Space.xl)

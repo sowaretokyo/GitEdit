@@ -21,8 +21,7 @@ struct RepositoryWindowContent: View {
             } else if !store.isLoaded {
                 // Restoration can race the store's own persisted-state load;
                 // show a spinner instead of jumping straight to "not found".
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                LoadingStateView()
             } else {
                 UnavailableRepositoryView()
             }

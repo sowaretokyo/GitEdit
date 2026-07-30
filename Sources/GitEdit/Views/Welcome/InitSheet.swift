@@ -47,18 +47,13 @@ struct InitSheet: View {
                     ProgressView().controlSize(.small)
                 }
                 Spacer()
-                Button(L("キャンセル")) { isPresented = false }
-                    .keyboardShortcut(.cancelAction)
-                    .disabled(isInitializing)
-                Button {
-                    Task { await performInit() }
-                } label: {
-                    Text(L("作成"))
-                        .frame(minWidth: 80)
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(!canInit)
+                SheetActionButtons(
+                    actionTitle: L("作成"),
+                    isActionEnabled: canInit,
+                    isWorking: isInitializing,
+                    onCancel: { isPresented = false },
+                    onAction: { Task { await performInit() } }
+                )
             }
         }
         .padding(DT.Space.xl)

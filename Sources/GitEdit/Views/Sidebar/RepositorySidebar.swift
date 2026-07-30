@@ -21,18 +21,14 @@ struct RepositorySidebar: View {
             .listStyle(.sidebar)
             .overlay {
                 if store.repositories.isEmpty {
-                    VStack(spacing: DT.Space.sm) {
-                        Image(systemName: "tray")
-                            .font(.system(size: 28, weight: .light))
-                            .foregroundStyle(.tertiary)
-                        Text(L("リポジトリがありません"))
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        Text(L("下のボタンから追加"))
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(.top, DT.Space.xxxl)
+                    EmptyStateView(
+                        icon: "tray",
+                        title: L("リポジトリがありません"),
+                        subtitle: L("下のボタンから追加"),
+                        iconSize: 28,
+                        background: .clear
+                    )
+                    .allowsHitTesting(false)
                 }
             }
 

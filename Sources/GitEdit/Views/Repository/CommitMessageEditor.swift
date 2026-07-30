@@ -69,14 +69,7 @@ struct CommitMessageEditor: View {
         )
         .padding(.horizontal, DT.Space.sm)
         .frame(height: 32)
-        .background(
-            RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
-                .fill(Color(nsColor: .textBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
-                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
-        )
+        .editorSurface()
     }
 
     // MARK: - Description
@@ -89,14 +82,7 @@ struct CommitMessageEditor: View {
         )
         .frame(minHeight: 88, maxHeight: 160)
         .padding(DT.Space.sm)
-        .background(
-            RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
-                .fill(Color(nsColor: .textBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
-                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
-        )
+        .editorSurface()
     }
 
     // MARK: - Amend toggle

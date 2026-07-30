@@ -73,18 +73,13 @@ struct CloneSheet: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button(L("キャンセル")) { isPresented = false }
-                    .keyboardShortcut(.cancelAction)
-                    .disabled(isCloning)
-                Button {
-                    Task { await performClone() }
-                } label: {
-                    Text(L("クローン"))
-                        .frame(minWidth: 80)
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(!canClone)
+                SheetActionButtons(
+                    actionTitle: L("クローン"),
+                    isActionEnabled: canClone,
+                    isWorking: isCloning,
+                    onCancel: { isPresented = false },
+                    onAction: { Task { await performClone() } }
+                )
             }
         }
         .padding(DT.Space.xl)

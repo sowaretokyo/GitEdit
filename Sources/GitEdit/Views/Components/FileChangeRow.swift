@@ -1,25 +1,32 @@
 import SwiftUI
 
 struct FileChangeRow: View {
+    enum Mode {
+        case workingTree(onToggle: () -> Void)
+        case readOnly
+    }
+
     let change: FileChange
     let isSelected: Bool
-    let onToggle: () -> Void
+    let mode: Mode
 
     @State private var isHovering = false
 
     var body: some View {
         HStack(spacing: DT.Space.sm) {
-            if change.isConflicted {
-                // Conflicted files can't be staged via checkbox — they need
-                // explicit resolution first.
-                Color.clear.frame(width: 14, height: 14)
-            } else {
-                Toggle("", isOn: Binding(
-                    get: { change.willBeCommitted },
-                    set: { _ in onToggle() }
-                ))
-                .toggleStyle(.checkbox)
-                .labelsHidden()
+            if case .workingTree(let onToggle) = mode {
+                if change.isConflicted {
+                    // Conflicted files can't be staged via checkbox — they need
+                    // explicit resolution first.
+                    Color.clear.frame(width: 14, height: 14)
+                } else {
+                    Toggle("", isOn: Binding(
+                        get: { change.willBeCommitted },
+                        set: { _ in onToggle() }
+                    ))
+                    .toggleStyle(.checkbox)
+                    .labelsHidden()
+                }
             }
 
             StatusBadge(change: change)
@@ -32,17 +39,19 @@ struct FileChangeRow: View {
 
             Spacer(minLength: 0)
 
-            if change.isConflicted {
-                Text(L("競合"))
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
-                    .background(Color(nsColor: .systemOrange).opacity(0.18), in: Capsule())
-                    .foregroundStyle(Color(nsColor: .systemOrange))
-            } else if change.hasStagedChange && change.hasUnstagedChange {
-                Text(L("一部のみ ステージ"))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+            if case .workingTree = mode {
+                if change.isConflicted {
+                    Text(L("競合"))
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color(nsColor: .systemOrange).opacity(0.18), in: Capsule())
+                        .foregroundStyle(Color(nsColor: .systemOrange))
+                } else if change.hasStagedChange && change.hasUnstagedChange {
+                    Text(L("一部のみ ステージ"))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
         .padding(.horizontal, DT.Space.sm)

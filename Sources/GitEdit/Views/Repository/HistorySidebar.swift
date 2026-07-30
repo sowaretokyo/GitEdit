@@ -5,12 +5,11 @@ struct HistorySidebar: View {
     @ObservedObject var viewModel: HistoryViewModel
 
     var body: some View {
-        VStack(spacing: 0) {
+        SidebarContainer {
             header
-            Divider()
+        } content: {
             content
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
         .overlay {
             // Covers the whole sidebar (not just the list) so a menu-triggered
             // move/drop can't be re-triggered mid-flight via the header either.
@@ -30,12 +29,7 @@ struct HistorySidebar: View {
                 .font(.callout.weight(.medium))
             Spacer()
             if !viewModel.commits.isEmpty {
-                Text("\(viewModel.commits.count)")
-                    .font(.caption.weight(.medium))
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.18), in: Capsule())
-                    .foregroundStyle(.tint)
+                CountBadge(count: viewModel.commits.count)
             }
         }
         .padding(.horizontal, DT.Space.md)
@@ -45,23 +39,13 @@ struct HistorySidebar: View {
     @ViewBuilder
     private var content: some View {
         if viewModel.isLoading && viewModel.commits.isEmpty {
-            VStack {
-                Spacer()
-                ProgressView()
-                Spacer()
-            }
-            .frame(maxWidth: .infinity)
+            LoadingStateView()
         } else if viewModel.commits.isEmpty {
-            VStack(spacing: DT.Space.sm) {
-                Spacer()
-                Image(systemName: "tray")
-                    .font(.system(size: 32, weight: .light))
-                    .foregroundStyle(.tertiary)
-                Text(L("コミットがありません"))
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity)
+            EmptyStateView(
+                icon: "tray",
+                title: L("コミットがありません"),
+                background: .clear
+            )
         } else {
             List(selection: $viewModel.selectedCommitID) {
                 ForEach(Array(viewModel.commits.enumerated()), id: \.element.id) { index, commit in

@@ -7,12 +7,11 @@ struct ExplorerSidebar: View {
     let onSelect: (FileNode) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
+        SidebarContainer {
             header
-            Divider()
+        } content: {
             content
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
         .task {
             if viewModel.rootNodes.isEmpty {
                 await viewModel.load()
@@ -41,26 +40,16 @@ struct ExplorerSidebar: View {
     @ViewBuilder
     private var content: some View {
         if viewModel.isLoading && viewModel.rootNodes.isEmpty {
-            VStack {
-                Spacer()
-                ProgressView()
-                Spacer()
-            }
-            .frame(maxWidth: .infinity)
+            LoadingStateView()
         } else if let error = viewModel.lastError {
             errorState(error)
         } else if viewModel.rootNodes.isEmpty {
-            VStack(spacing: DT.Space.sm) {
-                Spacer()
-                Image(systemName: "folder.badge.questionmark")
-                    .font(.system(size: 24, weight: .light))
-                    .foregroundStyle(.tertiary)
-                Text(L("ファイルがありません"))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .frame(maxWidth: .infinity)
+            EmptyStateView(
+                icon: "folder.badge.questionmark",
+                title: L("ファイルがありません"),
+                iconSize: 24,
+                background: .clear
+            )
         } else {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {

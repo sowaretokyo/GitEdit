@@ -183,7 +183,7 @@ private struct HunkView: View {
             .padding(.vertical, 3)
             .background(Color.accentColor.opacity(0.08))
 
-            ForEach(Array(numberedLines().enumerated()), id: \.offset) { lineIndex, entry in
+            ForEach(Array(hunk.numberedLines().enumerated()), id: \.offset) { lineIndex, entry in
                 lineRow(lineIndex: lineIndex, patchLine: entry.patchLine, diffLine: entry.diffLine)
             }
         }
@@ -214,23 +214,4 @@ private struct HunkView: View {
         }
     }
 
-    /// Pairs each `PatchLine` with the `DiffLine` `DiffLineRow` expects,
-    /// tracking running old/new line numbers the same way `DiffParser` does.
-    private func numberedLines() -> [(patchLine: PatchLine, diffLine: DiffLine)] {
-        var oldLine = hunk.oldStart - 1
-        var newLine = hunk.newStart - 1
-        return hunk.lines.map { line in
-            switch line.kind {
-            case .context:
-                oldLine += 1; newLine += 1
-                return (line, .context(content: line.content, oldLine: oldLine, newLine: newLine))
-            case .removed:
-                oldLine += 1
-                return (line, .removed(content: line.content, oldLine: oldLine))
-            case .added:
-                newLine += 1
-                return (line, .added(content: line.content, newLine: newLine))
-            }
-        }
-    }
 }

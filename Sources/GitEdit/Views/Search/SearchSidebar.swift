@@ -12,41 +12,30 @@ struct SearchSidebar: View {
     @FocusState private var queryFocused: Bool
 
     var body: some View {
-        VStack(spacing: 0) {
-            queryField
-            Divider()
-            summaryRow
-            Divider()
+        SidebarContainer {
+            VStack(spacing: 0) {
+                queryField
+                Divider()
+                summaryRow
+            }
+        } content: {
             content
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.4))
         .onAppear { queryFocused = true }
     }
 
     private var queryField: some View {
-        HStack(spacing: DT.Space.sm) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField(L("文字列を検索"), text: $viewModel.query)
-                .textFieldStyle(.plain)
-                .font(.callout)
-                .focused($queryFocused)
-                .onSubmit { viewModel.run() }
-            if !viewModel.query.isEmpty {
-                Button {
-                    viewModel.clear()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-            }
-            if viewModel.isSearching {
-                ProgressView().controlSize(.small)
-            }
+        FilterField(
+            text: $viewModel.query,
+            prompt: L("文字列を検索"),
+            isLoading: viewModel.isSearching,
+            focus: $queryFocused,
+            onClear: { viewModel.clear() },
+            onSubmit: { viewModel.searchImmediately() }
+        )
+        .onChange(of: viewModel.query) { _, _ in
+            viewModel.scheduleSearch()
         }
-        .padding(.horizontal, DT.Space.md)
-        .padding(.vertical, DT.Space.sm)
     }
 
     private var summaryRow: some View {
@@ -101,21 +90,13 @@ struct SearchSidebar: View {
     }
 
     private var placeholder: some View {
-        VStack(spacing: DT.Space.sm) {
-            Spacer()
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(viewModel.query.isEmpty
-                 ? L("検索したい文字列を入力してください")
-                 : L("一致する結果がありません"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, DT.Space.md)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+        EmptyStateView(
+            icon: "doc.text.magnifyingglass",
+            title: viewModel.query.isEmpty
+                ? L("検索したい文字列を入力してください")
+                : L("一致する結果がありません"),
+            background: .clear
+        )
     }
 
     private func errorState(message: String) -> some View {
@@ -150,12 +131,7 @@ private struct FileGroupHeader: View {
                 .truncationMode(.middle)
                 .foregroundStyle(hasCurrent ? .primary : .primary)
                 .fontWeight(hasCurrent ? .semibold : .regular)
-            Text("\(count)")
-                .font(.caption.weight(.medium))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 1)
-                .background(Color.accentColor.opacity(0.18), in: Capsule())
-                .foregroundStyle(.tint)
+            CountBadge(count: count, style: .compactAccent)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, DT.Space.sm)

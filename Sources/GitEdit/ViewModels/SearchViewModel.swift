@@ -9,10 +9,12 @@ final class SearchViewModel: ObservableObject {
     @Published var lastError: String?
 
     private let git: GitClient
+    private let debounceDuration: Duration
     private var searchTask: Task<Void, Never>?
 
-    init(repository: URL) {
+    init(repository: URL, debounceDuration: Duration = .milliseconds(300)) {
         self.git = GitClient(repository: repository)
+        self.debounceDuration = debounceDuration
     }
 
     /// Files-as-sections projection of the results.
@@ -26,30 +28,43 @@ final class SearchViewModel: ObservableObject {
     var totalMatches: Int { results.count }
     var totalFiles: Int { Set(results.map(\.path)).count }
 
-    func run() {
+    func scheduleSearch() {
+        startSearch(after: debounceDuration)
+    }
+
+    func searchImmediately() {
+        startSearch(after: nil)
+    }
+
+    private func startSearch(after delay: Duration?) {
         searchTask?.cancel()
-        let q = query
-        let trimmed = q.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+        let searchQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !searchQuery.isEmpty else {
             results = []
+            isSearching = false
+            lastError = nil
             return
         }
         isSearching = true
         lastError = nil
+        let git = self.git
         searchTask = Task { [weak self] in
-            guard let self else { return }
             do {
-                let matches = try await self.git.grep(query: q)
-                if !Task.isCancelled {
-                    self.results = matches
+                if let delay {
+                    try await Task.sleep(for: delay)
                 }
+                try Task.checkCancellation()
+                let matches = try await git.grep(query: searchQuery)
+                try Task.checkCancellation()
+                guard let self else { return }
+                self.results = matches
+                self.isSearching = false
+            } catch is CancellationError {
+                return
             } catch {
-                if !Task.isCancelled {
-                    self.results = []
-                    self.lastError = error.localizedDescription
-                }
-            }
-            if !Task.isCancelled {
+                guard !Task.isCancelled, let self else { return }
+                self.results = []
+                self.lastError = error.localizedDescription
                 self.isSearching = false
             }
         }

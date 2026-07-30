@@ -109,12 +109,7 @@ struct CommitDetailView: View {
                     .font(.headline)
                 Spacer()
                 if !viewModel.commitFiles.isEmpty {
-                    Text("\(viewModel.commitFiles.count)")
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.18), in: Capsule())
-                        .foregroundStyle(.tint)
+                    CountBadge(count: viewModel.commitFiles.count)
                 }
             }
             .padding(.horizontal, DT.Space.md)
@@ -123,31 +118,22 @@ struct CommitDetailView: View {
             Divider()
 
             if viewModel.isLoadingCommitFiles && viewModel.commitFiles.isEmpty {
-                VStack {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                LoadingStateView()
             } else if viewModel.commitFiles.isEmpty {
-                VStack(spacing: DT.Space.sm) {
-                    Spacer()
-                    Image(systemName: "tray")
-                        .font(.system(size: 24, weight: .light))
-                        .foregroundStyle(.tertiary)
-                    Text(L("ファイル変更なし"))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyStateView(
+                    icon: "tray",
+                    title: L("ファイル変更なし"),
+                    iconSize: 24,
+                    background: .clear
+                )
             } else {
                 ScrollView {
                     LazyVStack(spacing: 1) {
                         ForEach(viewModel.commitFiles) { file in
-                            CommitFileRow(
-                                file: file,
-                                isSelected: viewModel.selectedCommitFilePath == file.path
+                            FileChangeRow(
+                                change: file,
+                                isSelected: viewModel.selectedCommitFilePath == file.path,
+                                mode: .readOnly
                             )
                             .onTapGesture {
                                 Task { await viewModel.selectCommitFile(file) }

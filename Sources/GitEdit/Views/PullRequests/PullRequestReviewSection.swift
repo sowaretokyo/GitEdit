@@ -126,14 +126,7 @@ struct PullRequestReviewSection: View {
             HistoryAwareTextEditor(text: $draftText, history: [], placeholder: L("コメントを書く…"))
                 .frame(minHeight: 70, maxHeight: 120)
                 .padding(DT.Space.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
-                        .fill(Color(nsColor: .textBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DT.Radius.md, style: .continuous)
-                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                )
+                .editorSurface()
                 .disabled(viewModel.isSubmittingReviewAction)
 
             if let message = viewModel.reviewActionErrorMessage {

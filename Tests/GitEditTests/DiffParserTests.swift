@@ -83,4 +83,30 @@ final class DiffParserTests: XCTestCase {
         }
         XCTAssertFalse(hasMarker)
     }
+
+    func testStructuredHunkNumberingTracksBothSides() {
+        let hunk = DiffHunk(
+            header: "@@ -10,3 +20,3 @@",
+            oldStart: 10,
+            oldCount: 3,
+            newStart: 20,
+            newCount: 3,
+            lines: [
+                PatchLine(kind: .context, content: "keep", noNewlineAtEOF: false),
+                PatchLine(kind: .removed, content: "old", noNewlineAtEOF: false),
+                PatchLine(kind: .added, content: "new", noNewlineAtEOF: false),
+                PatchLine(kind: .context, content: "tail", noNewlineAtEOF: false)
+            ]
+        )
+
+        XCTAssertEqual(
+            hunk.numberedLines().map(\.diffLine),
+            [
+                .context(content: "keep", oldLine: 10, newLine: 20),
+                .removed(content: "old", oldLine: 11),
+                .added(content: "new", newLine: 21),
+                .context(content: "tail", oldLine: 12, newLine: 22)
+            ]
+        )
+    }
 }

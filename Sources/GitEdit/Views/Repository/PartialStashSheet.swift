@@ -57,9 +57,7 @@ struct PartialStashSheet: View {
     @ViewBuilder
     private var list: some View {
         if viewModel.isLoading {
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(nsColor: .textBackgroundColor))
+            LoadingStateView(background: Color(nsColor: .textBackgroundColor))
         } else if viewModel.isEmpty {
             EmptyStateView(icon: "archivebox", title: L("退避できる変更がありません"))
         } else {
@@ -89,14 +87,14 @@ struct PartialStashSheet: View {
             if isSubmitting {
                 ProgressView().controlSize(.small)
             }
-            Button(L("キャンセル")) { dismiss() }
-                .keyboardShortcut(.cancelAction)
-                .disabled(isSubmitting)
-            Button(L("選択を退避")) {
-                Task { await submit() }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!viewModel.hasSelection || isSubmitting)
+            SheetActionButtons(
+                actionTitle: L("選択を退避"),
+                isActionEnabled: viewModel.hasSelection && !isSubmitting,
+                isWorking: isSubmitting,
+                actionMinWidth: nil,
+                onCancel: { dismiss() },
+                onAction: { Task { await submit() } }
+            )
         }
         .padding(DT.Space.md)
     }
@@ -186,7 +184,7 @@ private struct HunkSection: View {
             .padding(.vertical, 3)
             .background(Color.accentColor.opacity(0.08))
 
-            ForEach(Array(numberedLines().enumerated()), id: \.offset) { lineIndex, entryPair in
+            ForEach(Array(hunk.numberedLines().enumerated()), id: \.offset) { lineIndex, entryPair in
                 lineRow(lineIndex: lineIndex, patchLine: entryPair.patchLine, diffLine: entryPair.diffLine)
             }
         }
@@ -214,23 +212,4 @@ private struct HunkSection: View {
         }
     }
 
-    /// Pairs each `PatchLine` with the `DiffLine` `DiffLineRow` expects,
-    /// tracking running old/new line numbers the same way `DiffParser` does.
-    private func numberedLines() -> [(patchLine: PatchLine, diffLine: DiffLine)] {
-        var oldLine = hunk.oldStart - 1
-        var newLine = hunk.newStart - 1
-        return hunk.lines.map { line in
-            switch line.kind {
-            case .context:
-                oldLine += 1; newLine += 1
-                return (line, .context(content: line.content, oldLine: oldLine, newLine: newLine))
-            case .removed:
-                oldLine += 1
-                return (line, .removed(content: line.content, oldLine: oldLine))
-            case .added:
-                newLine += 1
-                return (line, .added(content: line.content, newLine: newLine))
-            }
-        }
-    }
 }

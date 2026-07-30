@@ -56,8 +56,7 @@ struct FileViewerPane: View {
     @ViewBuilder
     private var body_: some View {
         if isLoading {
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            LoadingStateView()
         } else if let error = loadError {
             errorState(error)
         } else if content.isEmpty {
@@ -100,14 +99,11 @@ struct FileViewerPane: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: DT.Space.sm) {
-            Image(systemName: "doc")
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.tertiary)
-            Text(L("ファイルが空です"))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        EmptyStateView(
+            icon: "doc",
+            title: L("ファイルが空です"),
+            background: .clear
+        )
     }
 
     private func errorState(_ message: String) -> some View {
